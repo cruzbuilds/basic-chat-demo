@@ -27,9 +27,37 @@ basic-chat-demo/
 
 ### 1. Install Python (one time only)
 
-Download it from [python.org/downloads](https://www.python.org/downloads/) and run the installer.
+Open the **Terminal** app on a Mac (press `Cmd + Space`, type `Terminal`, press **Enter**), or **Command Prompt** on Windows. A terminal is a window where you type commands. Paste each command below and press **Enter**.
 
-On Windows, tick the box **Add python.exe to PATH** on the first screen of the installer.
+First check whether Python is already installed:
+
+```bash
+python3 --version
+```
+
+On Windows, type `python --version` instead.
+
+If it prints `Python 3.10` or higher, skip to step 2. Otherwise, install it.
+
+**Mac:** paste these two commands, one at a time. The second asks for your Mac password. Nothing shows while you type, which is normal.
+
+```bash
+curl -o ~/Downloads/python.pkg https://www.python.org/ftp/python/3.12.8/python-3.12.8-macos11.pkg
+```
+
+```bash
+sudo installer -pkg ~/Downloads/python.pkg -target /
+```
+
+**Windows:**
+
+```bash
+winget install -e --id Python.Python.3.12
+```
+
+Then close the terminal and open it again, so it finds the new Python.
+
+If a command fails, or says you don't have permission (common when your computer is managed by IT), install Python from your company's software center (on a Mac, often the **Self Service** app), or download it from [python.org/downloads](https://www.python.org/downloads/). On Windows, tick **Add python.exe to PATH** on the installer's first screen.
 
 ### 2. Get the project
 
@@ -37,13 +65,21 @@ If you're on the GitHub page, click the green **Code** button, then **Download Z
 
 Unzip it. You get a folder, which may be called `basic-chat-demo` or `basic-chat-demo-main`. It's the folder that contains this `README.md` file.
 
-### 3. Open a terminal in the project folder
+### 3. Move the terminal into the project folder
 
-A terminal is a window where you type commands.
+The next step only works from inside the project folder.
 
-**Mac:** Open the **Terminal** app (press `Cmd + Space`, type `Terminal`, press **Enter**). Type `cd` followed by a space, drag the project folder into the Terminal window, then press **Enter**.
+**Mac:** paste this. It finds the project in your Downloads, Desktop, or Documents folder and moves you into it:
 
-**Windows:** Open the project folder in File Explorer. Click the address bar at the top, type `cmd`, then press **Enter**.
+```bash
+cd "$(dirname "$(find ~/Downloads ~/Desktop ~/Documents -maxdepth 4 -name requirements.txt -path '*basic-chat*' 2>/dev/null | head -1)")" && pwd && ls
+```
+
+**Windows:** open the project folder in File Explorer. Click the address bar at the top, type `cmd`, then press **Enter**. Then paste `dir`.
+
+**Check before you continue:** the list printed in the terminal must include `README.md`, `requirements.txt`, `demo`, and `architecture`. If it doesn't, you're not in the project folder yet.
+
+Another way on a Mac: type `cd` followed by a space, drag the project folder into the Terminal window, then press **Enter**.
 
 ### 4. Copy, paste, press Enter
 
@@ -94,7 +130,7 @@ If your gateway uses different model names from the two this demo lists (`haiku-
 
 To stop the app, click the terminal window and press `Ctrl + C`.
 
-To start it again later, repeat step 3, then paste this on a Mac:
+To start it again later, open a terminal, run the step 3 command, then paste this on a Mac:
 
 ```bash
 python3 -m streamlit run demo/app.py
@@ -157,6 +193,7 @@ After you save a change, stop and restart the app.
 | `command not found: python3` or `'python' is not recognized` | Install Python (step 1). On Windows, reinstall and tick **Add python.exe to PATH**. |
 | `externally-managed-environment` during install | Paste `python3 -m venv .venv && source .venv/bin/activate`, then run step 4 again. From now on, paste `source .venv/bin/activate` each time before you start the app. |
 | The install can't download packages | Your network may block package downloads. Ask IT for the internal Python package mirror. |
+| `Could not open requirements file` or `No such file or directory` | The terminal isn't inside the project folder. Run step 3 again, and check that the list it prints includes `requirements.txt`. |
 | `No module named streamlit` | Run step 4 again. If you used `.venv`, paste `source .venv/bin/activate` first. |
 | "The gateway rejected the API key" | The key has a typo or was replaced. Paste it again, or create a new one. |
 | "The gateway URL looks wrong" | Paste the gateway URL exactly as the console shows it, ending in `/v1`. Don't add `/chat/completions`. |
