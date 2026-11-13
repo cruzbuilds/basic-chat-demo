@@ -1,21 +1,21 @@
 # AI Gateway Demo
 
-A simple chatbot that shows how an application connects to an AI gateway, and what the gateway controls once it does:
+The simplest possible AI agent: a chat assistant with one tool, a small database it can search. Every request goes through an AI gateway, and the gateway decides what's allowed.
 
-- **Which models can be used.** One model is allowed, the other is blocked.
-- **Where visibility lives.** The app tracks nothing itself. Usage, cost, and logs are recorded by the gateway.
-- **What gets stopped.** Prompt injection, harmful requests, and personal data.
-- **How it is tested.** One click runs a test set across eight dimensions of responsible AI.
+- **The app** sends requests and shows what comes back. It has no security logic of its own. When the gateway refuses something, the page shows the gateway's response exactly as it was sent.
+- **The gateway** controls which models the app may use and enforces the guardrails.
+- **The database** holds about 200 records of **synthetic** personnel and mission data, including fake Social Security numbers. It's there so the demo can show requests a model would happily answer, but the gateway should stop.
 
-It works right away in **practice mode**, with simulated responses, so you can try it before you have a key.
+Pick a demo prompt from the dropdown at the bottom of the page, click **Send**, and watch what the gateway does.
 
 ```
 basic-chat-demo/
 ├── README.md              You are here
 ├── requirements.txt       The two packages the app needs
 ├── demo/
-│   ├── app.py             The chatbot
+│   ├── app.py             The app
 │   ├── prompts.py         The assistant's instructions and the demo prompts
+│   ├── database.py        The synthetic database and the tool that searches it
 │   └── DEMO_SCRIPT.md     Step-by-step script for presenting the demo
 └── architecture/
     └── README.md          How the pieces fit together
@@ -103,15 +103,13 @@ Leave the terminal window open while you use the app. Closing it stops the app.
 
 ### 5. Connect to the gateway
 
-**No key yet?** Skip this step. Everything works in practice mode, with simulated responses, and a banner at the top of the app says so.
-
-To get a key, ask your gateway administrator for access to the gateway's console, then:
+The app needs a key to do anything. To get one, ask your gateway administrator for access to the gateway's console, then:
 
 1. In the console, create an API key for this app. Some gateways call it an agent key.
 2. Copy the key. Many consoles show it **only once**, so paste it somewhere safe right away.
 3. Copy the gateway's **base URL**. It ends in `/v1`.
    - In the console, it's the address shown on its own line, or the value after `base_url=` in a **Python** example.
-   - **Don't** copy the address from a **curl** example. It has `/chat/completions` on the end, and the app will say "The gateway URL looks wrong."
+   - **Don't** copy the address from a **curl** example. It has `/chat/completions` on the end, and requests will fail with `HTTP 404`.
    - No `/` at the end, no quotes, no spaces.
 
    | | Example |
@@ -119,9 +117,9 @@ To get a key, ask your gateway administrator for access to the gateway's console
    | Right | `https://your-gateway.example.com/v1` |
    | Wrong | `https://your-gateway.example.com/v1/chat/completions` |
 
-4. In the app's left sidebar, under **Connection**, paste the gateway URL in the first box and the API key in the second.
+4. In the app's left sidebar, paste the gateway URL in the first box and the API key in the second. You're done.
 
-The sidebar changes from "Practice mode" to "Connected to", and the banner disappears. You're done.
+If the sidebar is hidden, click `»` in the top-left corner to bring it back.
 
 The values look like this. Yours will be different:
 
@@ -169,8 +167,10 @@ Open the file in a plain-text code editor, such as [Visual Studio Code](https://
 |---|---|
 | Save the key and URL so you don't paste them every time | The settings block at the top of `demo/app.py`. Replace `PASTE-YOUR-API-KEY-HERE` and `PASTE-YOUR-GATEWAY-URL-HERE`, keeping the quote marks. |
 | Model names | `MODELS` at the top of `demo/app.py`. Use your gateway's names, and put the allowed model first. |
-| How the assistant writes (tone, length, rules) | `SYSTEM_PROMPT` in `demo/prompts.py` |
-| Demo prompts and risk tests | `DEMO_PROMPTS` in `demo/prompts.py` |
+| How the assistant writes (tone and length) | `SYSTEM_PROMPT` in `demo/prompts.py` |
+| The demo prompts in the dropdown | `DEMO_PROMPTS` in `demo/prompts.py` |
+| Gateway doesn't support tool calling | Set `AGENT_USE_TOOLS = False` in `demo/app.py`. The app then looks up matching records itself and sends them with the question. |
+| Rebuild the synthetic database | Delete `demo/demo_data.db`. The app creates a fresh one on the next start. |
 
 After you save a change, stop and restart the app.
 
@@ -190,7 +190,8 @@ After you save a change, stop and restart the app.
 |---|---|
 | Gateway | The checkpoint every AI request passes through. It decides which models may be used and what gets blocked. |
 | API key | A password for an application. It tells the gateway which agent is asking. |
-| HTTP 403, 400, 404 | Codes the gateway sends back. 403 and 400 usually mean "not allowed". 404 usually means the URL is wrong. |
+| HTTP 400, 403, 404, 429 | Codes the gateway sends back when it refuses a request. Exactly what each means depends on your gateway, but usually: 400 or 403 = not allowed by policy, 404 = wrong URL or unknown model, 429 = too many requests. |
+| Tool | Something the assistant can use. Here, the only tool is "search the database". |
 | `/v1` | The last part of the gateway URL. It must be included. |
 
 ---
@@ -204,11 +205,9 @@ After you save a change, stop and restart the app.
 | The install can't download packages | Your network may block package downloads. Ask IT for the internal Python package mirror. |
 | `Could not open requirements file` or `No such file or directory` | The terminal isn't inside the project folder. Run step 3 again, and check that the list it prints includes `requirements.txt`. |
 | `No module named streamlit` | Run step 4 again. If you used `.venv`, paste `source .venv/bin/activate` first. |
-| "The gateway rejected the API key" | The key has a typo or was replaced. Paste it again, or create a new one. |
-| "The gateway URL looks wrong" | Paste the gateway's base URL, ending in `/v1`: the one on its own line in the console, or after `base_url=` in a Python example. Not the address from a curl example, which ends in `/chat/completions`. |
-| "Could not reach the gateway" | Check the gateway URL, and your network or VPN connection. |
-| "The gateway is rate limiting this key" | Wait a minute and try again. |
-| Every message says "Blocked by gateway" | You probably have the restricted model selected. Switch **Model** in the sidebar back to the first one. |
-| A prompt that should be blocked shows a normal answer starting with the gateway's block message | Copy the first few words of that message into `GATEWAY_BLOCK_PHRASES` in `demo/app.py`. |
-| "The gateway may not support streaming" | Set `STREAM_RESPONSES = False` in `demo/app.py`. |
+| `HTTP 401` | The key has a typo or was replaced. Paste it again, or create a new one. |
+| `HTTP 404` on every message | The gateway URL is wrong. Paste the base URL ending in `/v1`, not the address from a curl example. |
+| `APIConnectionError` or `APITimeoutError` | The app couldn't reach the gateway. Check the URL, and your network or VPN connection. |
+| A refusal on every message, even "hello" | You may have the restricted model selected. Switch **Model** in the sidebar back to the first one. |
+| `HTTP 400` mentioning `tools` | Your gateway doesn't support tool calling. Set `AGENT_USE_TOOLS = False` in `demo/app.py`. |
 | The browser didn't open | Go to `http://localhost:8501` yourself. |
