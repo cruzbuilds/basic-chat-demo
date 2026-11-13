@@ -109,7 +109,16 @@ To get a key, ask your gateway administrator for access to the gateway's console
 
 1. In the console, create an API key for this app. Some gateways call it an agent key.
 2. Copy the key. Many consoles show it **only once**, so paste it somewhere safe right away.
-3. Copy the gateway URL. It starts with `https://` and usually ends in `/v1`.
+3. Copy the gateway's **base URL**. It ends in `/v1`.
+   - In the console, it's the address shown on its own line, or the value after `base_url=` in a **Python** example.
+   - **Don't** copy the address from a **curl** example. It has `/chat/completions` on the end, and the app will say "The gateway URL looks wrong."
+   - No `/` at the end, no quotes, no spaces.
+
+   | | Example |
+   |---|---|
+   | Right | `https://your-gateway.example.com/v1` |
+   | Wrong | `https://your-gateway.example.com/v1/chat/completions` |
+
 4. In the app's left sidebar, under **Connection**, paste the gateway URL in the first box and the API key in the second.
 
 The sidebar changes from "Practice mode" to "Connected to", and the banner disappears. You're done.
@@ -196,7 +205,7 @@ After you save a change, stop and restart the app.
 | `Could not open requirements file` or `No such file or directory` | The terminal isn't inside the project folder. Run step 3 again, and check that the list it prints includes `requirements.txt`. |
 | `No module named streamlit` | Run step 4 again. If you used `.venv`, paste `source .venv/bin/activate` first. |
 | "The gateway rejected the API key" | The key has a typo or was replaced. Paste it again, or create a new one. |
-| "The gateway URL looks wrong" | Paste the gateway URL exactly as the console shows it, ending in `/v1`. Don't add `/chat/completions`. |
+| "The gateway URL looks wrong" | Paste the gateway's base URL, ending in `/v1`: the one on its own line in the console, or after `base_url=` in a Python example. Not the address from a curl example, which ends in `/chat/completions`. |
 | "Could not reach the gateway" | Check the gateway URL, and your network or VPN connection. |
 | "The gateway is rate limiting this key" | Wait a minute and try again. |
 | Every message says "Blocked by gateway" | You probably have the restricted model selected. Switch **Model** in the sidebar back to the first one. |
