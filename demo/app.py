@@ -128,7 +128,7 @@ with st.sidebar:
     st.markdown("### AI Gateway")
     gateway_url = st.text_input("Gateway URL", value=SAVED_URL, placeholder="https://.../v1").strip()
     api_key = st.text_input("API key", type="password", placeholder="sk-...").strip() or SAVED_KEY
-    st.caption("Using the key from your settings." if SAVED_KEY else
+    st.caption("Using the key from GATEWAY_API_KEY or app.py." if SAVED_KEY else
                "What you paste here is never saved to a file. It's cleared when you close the tab.")
     st.write("")
     model = st.selectbox("Model", MODELS)

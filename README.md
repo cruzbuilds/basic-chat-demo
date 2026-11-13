@@ -101,19 +101,19 @@ python -m pip install -r requirements.txt && python -m streamlit run demo/app.py
 
 You'll see a lot of text scroll by, and maybe a yellow `WARNING`. That's normal. The first time takes a minute or two.
 
-It's ready when you see **You can now view your Streamlit app in your browser**. Your browser then opens the app at `http://localhost:8501`. Only your own computer can open it.
+It's ready when you see **You can now view your Streamlit app in your browser**. Your browser then opens the app at `http://localhost:8501`. If it doesn't open on its own, open your browser and go to `http://localhost:8501`. Only your own computer can open it.
 
 Leave the terminal window open while you use the app. Closing it stops the app.
 
 ### 5. Connect to the gateway
 
-The app needs a gateway URL and an API key. **If your administrator already gave you both, skip to item 4.**
+The app needs a gateway URL and an API key. **If your administrator already gave you both, skip to item 4**, and use the URL exactly as they gave it (it may start with `http://` or `https://`).
 
 To get them yourself, ask your gateway administrator for access to the gateway's console, then:
 
 1. In the console, create an API key for this app. Some gateways call it an agent key.
 2. Copy the key. Many consoles show it **only once**, so paste it somewhere safe right away.
-3. Copy the gateway's **base URL**. It ends in `/v1`.
+3. Copy the gateway's **base URL**. It starts with `https://` (sometimes `http://`) and ends in `/v1`.
    - In the console, it's the address shown on its own line, or the value after `base_url=` in a **Python** example.
    - **Don't** copy the address from a **curl** example. It has `/chat/completions` on the end, and requests will fail with `HTTP 404`.
    - No `/` at the end, no quotes, no spaces.
@@ -123,7 +123,7 @@ To get them yourself, ask your gateway administrator for access to the gateway's
    | Right | `https://your-gateway.example.com/v1` |
    | Wrong | `https://your-gateway.example.com/v1/chat/completions` |
 
-4. In the app's left sidebar, paste the gateway URL in the first box and the API key in the second.
+4. In the app's left sidebar, paste the gateway URL into the **Gateway URL** box and press **Enter**. Then paste the API key into the **API key** box and press **Enter**.
 5. Check that it works: in the **Demo prompts** box at the bottom of the page, choose **Baseline: Explain zero trust** and click **Send**. An answer means you're connected. A gray box starting with `HTTP` means something's wrong: see "If something goes wrong" below.
 
 If the sidebar is hidden, move your mouse to the top-left corner of the page and click the arrow that appears.
@@ -179,7 +179,7 @@ Open the file in a plain-text code editor, such as [Visual Studio Code](https://
 
 | To change | Edit |
 |---|---|
-| Connect automatically, without pasting the URL and key | **Mac:** in the terminal, before starting the app, paste `export GATEWAY_API_KEY="sk-..." GATEWAY_BASE_URL="https://.../v1"` with your values. **Windows:** `set GATEWAY_API_KEY=sk-...` then `set GATEWAY_BASE_URL=https://.../v1`. This lasts until you close that terminal window, and nothing is saved to a file. |
+| Connect automatically, without pasting the URL and key | Stop the app (`Ctrl + C`). In the same terminal window, set the two values, then start the app with the command from "Stop and restart". **Mac:** `export GATEWAY_API_KEY="sk-AbCdEf1234567890XyZ" GATEWAY_BASE_URL="https://your-gateway.example.com/v1"` with your own key and URL in place of the examples. Keep the quote marks in this command. **Windows:** `set GATEWAY_API_KEY=sk-AbCdEf1234567890XyZ`, then `set GATEWAY_BASE_URL=https://your-gateway.example.com/v1`, with no quote marks. The API key box in the app then stays empty and says "Using the key from GATEWAY_API_KEY or app.py". This lasts until you close that terminal window, and nothing is saved to a file. |
 | Save the URL and key in the app permanently | The settings block at the top of `demo/app.py`. Replace `PASTE-YOUR-API-KEY-HERE` and `PASTE-YOUR-GATEWAY-URL-HERE`, keeping the quote marks. Don't share or upload the file afterwards. |
 | Model names | `MODELS` at the top of `demo/app.py`. Use your gateway's exact names. The **first** must be a model this app is allowed to use. The **second** must be one your gateway **denies** for this app: the "Restricted model" demo prompt uses it. |
 | Gateway doesn't support tool calling | Set `AGENT_USE_TOOLS = False` in `demo/app.py`. The assistant then works as a plain chatbot, and the "(database)" prompts have no data to work with. |
@@ -222,7 +222,7 @@ After you save a change, stop and restart the app.
 | `No module named streamlit` | Run step 4 again. If you used `.venv`, paste `source .venv/bin/activate` first. |
 | `HTTP 401` | The key has a typo or was replaced. Paste it again, or create a new one. |
 | `HTTP 404` on every message | The gateway URL is wrong. Paste the base URL ending in `/v1`, not the address from a curl example. |
-| `APIConnectionError` or `APITimeoutError` | The app couldn't reach the gateway. Check that the URL starts with `https://` and has no quotes or spaces, then check your network or VPN connection. The line under the error usually says more. |
+| `APIConnectionError` or `APITimeoutError` | The app couldn't reach the gateway. Check that the URL is exactly what your administrator gave you, starts with `https://` or `http://`, and has no quotes or spaces, then check your network or VPN connection. The line under the error usually says more. |
 | A refusal on every message, even "hello" | You may have the restricted model selected. Switch **Model** in the sidebar back to the first one. |
 | An answer comes back, but nothing on screen seems to change | The page scrolls to the newest message on its own. If it didn't, scroll down. |
 | `HTTP 400` mentioning `tools` | Your gateway doesn't support tool calling. Set `AGENT_USE_TOOLS = False` in `demo/app.py`. |
