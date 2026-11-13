@@ -1,0 +1,20 @@
+# Look and feel of the demo app. Read automatically when you start the app
+# from the main project folder.
+
+[theme]
+base = "light"
+primaryColor = "#2D3B4E"
+backgroundColor = "#FAF9F6"
+secondaryBackgroundColor = "#F1EFEA"
+textColor = "#1F1F1E"
+font = "sans serif"
+
+[server]
+showEmailPrompt = false
+
+[client]
+toolbarMode = "minimal"
+showErrorDetails = "none"
+
+[browser]
+gatherUsageStats = false
