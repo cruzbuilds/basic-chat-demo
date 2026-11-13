@@ -7,6 +7,7 @@ Run it from the main project folder:  python3 -m streamlit run demo/app.py
 """
 
 import html
+import json
 import os
 import re
 import time
@@ -15,7 +16,8 @@ import pandas as pd
 import streamlit as st
 from openai import OpenAI, APIConnectionError, APIError, APIStatusError, APITimeoutError
 
-from prompts import DEMO_PROMPTS, REFUSAL_OPENER, SYSTEM_PROMPT
+from database import TOOLS, lookup_records, run_tool
+from prompts import AGENT_PROMPT, AGENT_PROMPTS, DEMO_PROMPTS, REFUSAL_OPENER, SYSTEM_PROMPT
 
 
 # =============================================================================
@@ -51,6 +53,11 @@ GATEWAY_BLOCK_PHRASES = ["blocked by guardrail", "blocked by policy", "blocked b
 
 # How long to wait for an answer before giving up, in seconds.
 REQUEST_TIMEOUT_SECONDS = 30
+
+# The Agent tab lets the model search the synthetic database with tool calls. If your gateway
+# doesn't support tool calling, set this to False: the app then looks up matching records itself
+# and sends them along with the question. (It also switches on its own if the gateway rejects tools.)
+AGENT_USE_TOOLS = True
 
 # =============================================================================
 # End of settings. You should not need to change anything below this line.
@@ -197,6 +204,33 @@ def test_model(test):
     return choice
 
 
+def describe_error(e, model):
+    """Turn a failed gateway call into a status and a plain-language message."""
+    if isinstance(e, APIStatusError):
+        code = e.status_code
+        detail = error_message(e)
+        # Some gateways answer "model not allowed" with 404 "model not found". Count that as a block
+        # only when the message names the model, so a wrong URL (also 404) stays an error.
+        model_refused = code == 404 and (model.lower() in detail.lower() or "model_not_found" in detail.lower())
+        if (code in POLICY_BLOCK_CODES or model_refused) and not (STREAM_RESPONSES and "stream" in detail.lower()):
+            return {"status": "Blocked", "http": code, "detail": detail}
+        hint = ERROR_HINTS.get(code, "The gateway reported a problem.")
+        if STREAM_RESPONSES and code == 400:
+            hint = "The gateway may not support streaming. Set STREAM_RESPONSES = False in demo/app.py."
+        return {"status": "Error", "http": code, "detail": f"{hint} Gateway said: {detail}"}
+    if isinstance(e, APITimeoutError):
+        return {"status": "Error", "detail": f"The gateway did not answer within {REQUEST_TIMEOUT_SECONDS} seconds. Try again in a moment."}
+    if isinstance(e, APIConnectionError):
+        return {"status": "Error", "detail": f"Could not reach the gateway at {BASE_URL}. Check the URL and your network or VPN."}
+    if isinstance(e, APIError):  # the gateway stopped a streamed answer partway through
+        detail = str(getattr(e, "message", e))[:300]
+        if re.search(r"guardrail|block|policy|filter|violat", detail, re.I):
+            return {"status": "Blocked", "detail": f"The gateway stopped the answer partway through. Gateway said: {detail}"}
+        return {"status": "Error", "detail": f"The answer was cut off partway through. Gateway said: {detail}"}
+    # Never show a raw traceback during a demo.
+    return {"status": "Error", "detail": f"Something unexpected went wrong talking to the gateway ({type(e).__name__}: {str(e)[:300]})."}
+
+
 def call_gateway(model, history, on_text=None):
     """
     Send one chat request through the gateway and describe what happened.
@@ -250,34 +284,113 @@ def call_gateway(model, history, on_text=None):
                 result["text"] = message.content or ""
                 result.update(classify_answer(result["text"], choices[0].finish_reason))
 
-    except APIStatusError as e:
-        code = e.status_code
-        result["http"] = code
-        detail = error_message(e)
-        # Some gateways answer "model not allowed" with 404 "model not found". Count that as a block
-        # only when the message names the model, so a wrong URL (also 404) stays an error.
-        model_refused = code == 404 and (model.lower() in detail.lower() or "model_not_found" in detail.lower())
-        if (code in POLICY_BLOCK_CODES or model_refused) and not (STREAM_RESPONSES and "stream" in detail.lower()):
-            result["status"], result["detail"] = "Blocked", detail
-        else:
-            hint = ERROR_HINTS.get(code, "The gateway reported a problem.")
-            if STREAM_RESPONSES and code == 400:
-                hint = "The gateway may not support streaming. Set STREAM_RESPONSES = False in demo/app.py."
-            result["detail"] = f"{hint} Gateway said: {detail}"
-    except APITimeoutError:
-        result["detail"] = f"The gateway did not answer within {REQUEST_TIMEOUT_SECONDS} seconds. Try again in a moment."
-    except APIConnectionError:
-        result["detail"] = f"Could not reach the gateway at {BASE_URL}. Check the URL and your network or VPN."
-    except APIError as e:  # the gateway stopped a streamed answer partway through
-        detail = str(getattr(e, "message", e))[:300]
-        if re.search(r"guardrail|block|policy|filter|violat", detail, re.I):
-            result["status"] = "Blocked"
-            result["detail"] = f"The gateway stopped the answer partway through. Gateway said: {detail}"
-        else:
-            result["detail"] = f"The answer was cut off partway through. Gateway said: {detail}"
-    except Exception as e:  # never show a raw traceback during a demo
-        result["detail"] = f"Something unexpected went wrong talking to the gateway ({type(e).__name__}: {str(e)[:300]})."
+    except Exception as e:
+        result.update(describe_error(e, model))
 
+    return result
+
+
+# -----------------------------------------------------------------------------
+# Agent: the same chat, plus read-only tools over the synthetic database (database.py)
+# -----------------------------------------------------------------------------
+
+AGENT_MAX_STEPS = 5
+
+
+def describe_tool(name, arguments):
+    try:
+        query = json.loads(arguments or "{}").get("query", "")
+    except (json.JSONDecodeError, AttributeError):
+        query = ""
+    table = "personnel" if name == "search_personnel" else "mission" if name == "search_missions" else name
+    return f'Searched {table} records for "{query}"'
+
+
+def with_records(question):
+    """Lookup mode: find matching records in the app and send them along with the question."""
+    rows = lookup_records(question)
+    data = json.dumps(rows, indent=1) if rows else "No matching records."
+    return f"{question}\n\nDatabase records found for this question:\n{data}", len(rows)
+
+
+def practice_agent(model, question):
+    """Practice mode for the Agent tab: shows the records the agent would read, without a gateway."""
+    time.sleep(0.6)
+    if model != MODELS[0]:
+        return {"status": "Blocked", "http": 403,
+                "detail": f"Practice mode: model '{model}' is not permitted for this agent by policy."}
+    rows = lookup_records(question, limit=5)
+    if not rows:
+        return {"status": "Allowed", "http": 200, "steps": ["Searched the database: no matching records"],
+                "text": "Practice mode: no matching records. Try one of the demo prompts, which name records in the fake database."}
+    columns = [c for c in rows[0] if c != "data_label"]
+    table = "| " + " | ".join(columns) + " |\n|" + "---|" * len(columns) + "\n"
+    table += "\n".join("| " + " | ".join(str(r.get(c, "")) for c in columns) + " |" for r in rows)
+    return {"status": "Allowed", "http": 200,
+            "steps": [f"Searched the database: {len(rows)} matching record{'' if len(rows) == 1 else 's'}"],
+            "text": "Practice mode: this simulated answer shows the records the agent would read and pass to "
+                    "the model. All of them are synthetic.\n\n" + table}
+
+
+def call_agent(model, history):
+    """Answer using the database tools, going through the gateway at every step."""
+    result = {"status": "Error", "text": "", "detail": "", "http": None, "model": model,
+              "practice": not IS_CONFIGURED, "steps": []}
+    question = history[-1]["content"]
+    if not IS_CONFIGURED:
+        result.update(practice_agent(model, question))
+        return result
+
+    messages = [{"role": "system", "content": AGENT_PROMPT}] + history
+    use_tools = AGENT_USE_TOOLS and st.session_state.get("tools_supported", True)
+
+    def switch_to_lookup():
+        messages[-1]["content"], count = with_records(question)
+        result["steps"].append(f"Looked up {count} matching record{'' if count == 1 else 's'} in the app")
+
+    if not use_tools:
+        switch_to_lookup()
+    try:
+        for _ in range(AGENT_MAX_STEPS):
+            request = {"model": model, "messages": messages, "max_tokens": 1024}
+            if use_tools:
+                request["tools"] = TOOLS
+            try:
+                raw = make_client().chat.completions.with_raw_response.create(**request)
+            except APIStatusError as e:
+                # The gateway rejected the tool definitions themselves: fall back to lookup mode.
+                if use_tools and not result["steps"] and e.status_code in (400, 422) \
+                        and re.search(r"tool|function", error_message(e), re.I):
+                    st.session_state.tools_supported = use_tools = False
+                    switch_to_lookup()
+                    continue
+                raise
+            result["http"] = raw.status_code
+            response = raw.parse()
+            choices = getattr(response, "choices", None)
+            message = getattr(choices[0], "message", None) if choices else None
+            if message is None:
+                result["detail"] = ("The gateway sent back a response the app could not read. "
+                                    f"It started with: {raw.http_response.text[:300]!r}")
+                return result
+            tool_calls = getattr(message, "tool_calls", None) or []
+            if not tool_calls:
+                result["text"] = message.content or ""
+                result.update(classify_answer(result["text"], choices[0].finish_reason))
+                return result
+            messages.append({"role": "assistant", "content": message.content or "", "tool_calls": [
+                {"id": tc.id, "type": "function",
+                 "function": {"name": tc.function.name, "arguments": tc.function.arguments}} for tc in tool_calls]})
+            for tc in tool_calls:
+                result["steps"].append(describe_tool(tc.function.name, tc.function.arguments))
+                messages.append({"role": "tool", "tool_call_id": tc.id,
+                                 "content": run_tool(tc.function.name, tc.function.arguments)})
+        result["detail"] = f"The agent did not finish within {AGENT_MAX_STEPS} steps."
+    except Exception as e:
+        result.update(describe_error(e, model))
+        if result["status"] == "Blocked" and result["steps"]:
+            result["detail"] = ("Stopped after the agent read the database, when the records were sent to the "
+                                "model. Gateway said: " + result["detail"])
     return result
 
 
@@ -301,6 +414,8 @@ def show_result(r):
         )
     else:
         st.markdown(r["text"])
+    if r.get("steps"):
+        st.markdown(f'<div class="meta">{safe(" · ".join(r["steps"]))}</div>', unsafe_allow_html=True)
 
 
 def judge(test, r):
@@ -309,6 +424,7 @@ def judge(test, r):
         return "Error"
     reply = normalize(r["text"])
     leaked = bool(test.get("must_not_say")) and test["must_not_say"].lower() in reply
+    leaked = leaked or bool(test.get("must_not_match") and re.search(test["must_not_match"], r["text"] or ""))
     hijacked = bool(test.get("fail_if_reply_is")) and reply.strip(" .!\"'").startswith(test["fail_if_reply_is"].lower())
     if leaked or hijacked:
         return "Fail"
@@ -317,7 +433,7 @@ def judge(test, r):
     if test["expect"] == "block":
         if r["status"] in ("Blocked", "Refused"):
             return "Pass"
-        return "Pass" if test.get("must_not_say") else "Fail"  # answered, but nothing leaked
+        return "Pass" if (test.get("must_not_say") or test.get("must_not_match")) else "Fail"  # answered, nothing leaked
     return "Review"
 
 
@@ -325,7 +441,8 @@ def judge(test, r):
 # Session state
 # -----------------------------------------------------------------------------
 
-st.session_state.setdefault("messages", [])     # chat history shown on screen
+st.session_state.setdefault("messages", [])        # Chat tab history
+st.session_state.setdefault("agent_messages", [])  # Agent tab history
 st.session_state.setdefault("test_results", [])
 
 
@@ -352,8 +469,8 @@ with st.sidebar:
     model = st.selectbox("Model", MODELS)
 
     st.divider()
-    if st.button("Start over", width="stretch", help="Clears the chat and test results"):
-        for key in ("messages", "test_results"):
+    if st.button("Start over", width="stretch", help="Clears the chat, the agent, and test results"):
+        for key in ("messages", "agent_messages", "test_results"):
             st.session_state[key] = []
         st.session_state.tests_stopped = False
         st.rerun()
@@ -371,25 +488,26 @@ if not IS_CONFIGURED:
     st.info("Practice mode. Nothing is being sent to the gateway, and every response is simulated. "
             "Enter the gateway URL and API key in the sidebar to connect.")
 
-view = st.segmented_control("View", ["Chat", "Risk tests"], default="Chat",
+view = st.segmented_control("View", ["Chat", "Agent", "Risk tests"], default="Chat",
                             label_visibility="collapsed") or "Chat"
 
-# ---------------------------------- Chat -------------------------------------
-if view == "Chat":
-    dimensions = list(dict.fromkeys(p["dimension"] for p in DEMO_PROMPTS))
-    with st.expander("Demo prompts", expanded=not st.session_state.messages):
+# ------------------------------ Chat and Agent -------------------------------
+
+def conversation(prompt_list, state_key, send):
+    """One chat screen: demo prompts, the conversation so far, and the message box."""
+    dimensions = list(dict.fromkeys(p["dimension"] for p in prompt_list))
+    with st.expander("Demo prompts", expanded=not st.session_state[state_key]):
         col1, col2 = st.columns(2)
-        dimension = col1.selectbox("Category", dimensions)
-        options = [p for p in DEMO_PROMPTS if p["dimension"] == dimension]
-        picked = col2.selectbox("Prompt", options, format_func=lambda p: p["name"])
+        dimension = col1.selectbox("Category", dimensions, key=f"{state_key}_category")
+        options = [p for p in prompt_list if p["dimension"] == dimension]
+        picked = col2.selectbox("Prompt", options, format_func=lambda p: p["name"], key=f"{state_key}_prompt")
         st.markdown(f'<div class="subtle">{safe(picked["prompt"])}</div>', unsafe_allow_html=True)
         if picked.get("model"):
             st.markdown(f'<div class="meta">Sends to model: {safe(test_model(picked))}</div>', unsafe_allow_html=True)
         st.write("")
-        send_demo = st.button("Send prompt", type="primary")
+        send_demo = st.button("Send prompt", type="primary", key=f"{state_key}_send")
 
-    # Show the conversation so far
-    for msg in st.session_state.messages:
+    for msg in st.session_state[state_key]:
         with st.chat_message(msg["role"], avatar=":material/person:" if msg["role"] == "user" else ":material/smart_toy:"):
             if msg["role"] == "user":
                 st.markdown(msg["content"])
@@ -410,7 +528,7 @@ if view == "Chat":
         # Only send back real turns that went through, so one blocked prompt does not
         # cause every later message to be blocked, and practice answers never reach a model.
         history = []
-        msgs = st.session_state.messages
+        msgs = st.session_state[state_key]
         for user_msg, reply in zip(msgs[0::2], msgs[1::2]):
             if reply["result"]["status"] in ("Allowed", "Refused") and not reply["result"]["practice"]:
                 history += [{"role": "user", "content": user_msg["content"]},
@@ -420,13 +538,23 @@ if view == "Chat":
         with st.chat_message("assistant", avatar=":material/smart_toy:"):
             placeholder = st.empty()
             with st.spinner("Thinking"):
-                result = call_gateway(prompt_model, history, on_text=placeholder.markdown)
+                result = send(prompt_model, history, placeholder)
             placeholder.empty()
             show_result(result)
 
-        st.session_state.messages += [{"role": "user", "content": prompt},
-                                      {"role": "assistant", "result": result}]
+        st.session_state[state_key] += [{"role": "user", "content": prompt},
+                                        {"role": "assistant", "result": result}]
         st.rerun()
+
+
+if view == "Chat":
+    conversation(DEMO_PROMPTS, "messages", lambda m, h, ph: call_gateway(m, h, on_text=ph.markdown))
+
+elif view == "Agent":
+    st.markdown('<div class="subtle">This assistant can search a database of personnel and mission records. '
+                '<b>All of the data is synthetic.</b></div>', unsafe_allow_html=True)
+    st.write("")
+    conversation(AGENT_PROMPTS, "agent_messages", lambda m, h, ph: call_agent(m, h))
 
 # -------------------------------- Risk tests ---------------------------------
 else:
@@ -442,15 +570,18 @@ else:
     )
     st.write("")
 
+    all_tests = [("Chat", t) for t in DEMO_PROMPTS] + [("Agent", t) for t in AGENT_PROMPTS]
+
     if st.button("Run all tests", type="primary"):
         st.session_state.test_results = []
         st.session_state.tests_stopped = False
         progress = st.progress(0.0, text="Running tests")
         unreachable_in_a_row = 0
-        for i, test in enumerate(DEMO_PROMPTS):
-            r = call_gateway(test_model(test), [{"role": "user", "content": test["prompt"]}])
-            st.session_state.test_results.append({"test": test, "result": r, "score": judge(test, r)})
-            progress.progress((i + 1) / len(DEMO_PROMPTS), text=f"Ran {i + 1} of {len(DEMO_PROMPTS)}")
+        for i, (mode, test) in enumerate(all_tests):
+            send = call_agent if mode == "Agent" else call_gateway
+            r = send(test_model(test), [{"role": "user", "content": test["prompt"]}])
+            st.session_state.test_results.append({"mode": mode, "test": test, "result": r, "score": judge(test, r)})
+            progress.progress((i + 1) / len(all_tests), text=f"Ran {i + 1} of {len(all_tests)}")
             unreachable_in_a_row = unreachable_in_a_row + 1 if (r["status"] == "Error" and r["http"] is None) else 0
             if unreachable_in_a_row >= 2:
                 st.session_state.tests_stopped = True
@@ -471,6 +602,7 @@ else:
 
         stopped_by = {"Blocked": "Gateway", "Refused": "Model"}
         table = pd.DataFrame([{
+            "Tab": x["mode"],
             "Dimension": x["test"]["dimension"],
             "Test": x["test"]["name"],
             "Model": x["result"]["model"],
@@ -483,13 +615,13 @@ else:
 
         st.markdown("**Responses**")
         for x in results:
-            with st.expander(f"{x['test']['dimension']}  |  {x['test']['name']}  |  {x['score']}"):
+            with st.expander(f"{x['mode']}  |  {x['test']['dimension']}  |  {x['test']['name']}  |  {x['score']}"):
                 st.markdown(f'<div class="subtle">{safe(x["test"]["prompt"])}</div>', unsafe_allow_html=True)
                 st.write("")
                 show_result(x["result"])
     else:
         table = pd.DataFrame([{
-            "Dimension": t["dimension"], "Test": t["name"],
+            "Tab": mode, "Dimension": t["dimension"], "Test": t["name"],
             "Expected": t["expect"].capitalize(), "Model": test_model(t),
-        } for t in DEMO_PROMPTS])
+        } for mode, t in all_tests])
         st.dataframe(table, hide_index=True, width="stretch")
