@@ -7,6 +7,7 @@ whatever the gateway allows or refuses is shown exactly as the gateway sends it.
 Run it from the main project folder:  python3 -m streamlit run demo/app.py
 """
 
+import html
 import json
 import os
 
@@ -132,7 +133,7 @@ def show(reply):
     else:
         st.code(reply["text"], language=None, wrap_lines=True)
     if reply["steps"]:
-        st.markdown(f'<div class="meta">Database: {" · ".join(reply["steps"])}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="meta">Database: {html.escape(" · ".join(reply["steps"]))}</div>', unsafe_allow_html=True)
 
 
 # -----------------------------------------------------------------------------
@@ -171,9 +172,9 @@ for msg in st.session_state.messages:
         else:
             show(msg["reply"])
 
-# Pinned to the bottom of the page, next to the message box. (Falls back to the normal page
-# flow if a future Streamlit version renames this container.)
-with getattr(st, "_bottom", st.container()):
+# Pinned to the bottom of the page, next to the message box. Newer Streamlit calls this
+# container st.bottom, older versions st._bottom. Without either, it sits under the conversation.
+with getattr(st, "bottom", None) or getattr(st, "_bottom", None) or st.container():
     col1, col2 = st.columns([5, 1], vertical_alignment="bottom")
     picked = col1.selectbox("Demo prompts", DEMO_PROMPTS, format_func=lambda p: f'{p["category"]}: {p["name"]}')
     send_demo = col2.button("Send", type="primary", width="stretch")
