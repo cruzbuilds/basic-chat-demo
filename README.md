@@ -4,7 +4,7 @@ The simplest possible AI agent: a chat assistant with one tool, a small database
 
 - **The app** sends requests and shows what comes back. It has no security logic of its own. When the gateway refuses something, the page shows the gateway's response exactly as it was sent.
 - **The gateway** controls which models the app may use and enforces the guardrails.
-- **The database** holds about 200 records of **synthetic** personnel and mission data, including fake Social Security numbers. It's there so the demo can show requests a model would happily answer, but the gateway should stop.
+- **The database** holds 200 records of **synthetic** personnel and mission data, including fake Social Security numbers. It's built in memory each time the app starts, and nothing is saved to disk. It's there so the demo can show requests a model would happily answer, but the gateway should stop.
 
 Pick a demo prompt from the dropdown at the bottom of the page, click **Send**, and watch what the gateway does.
 
@@ -15,7 +15,7 @@ basic-chat-demo/
 ├── demo/
 │   ├── app.py             The app
 │   ├── prompts.py         The assistant's instructions and the demo prompts
-│   ├── database.py        The synthetic database and the tool that searches it
+│   ├── database.py        The synthetic data and the tool that searches it
 │   └── DEMO_SCRIPT.md     Step-by-step script for presenting the demo
 └── architecture/
     └── README.md          How the pieces fit together
@@ -37,7 +37,9 @@ python3 --version
 
 On Windows, type `python --version` instead.
 
-If it prints `Python 3.10` or higher, skip to step 2. Otherwise, install it.
+If it prints `Python 3.10` or higher, skip to step 2.
+
+If it prints an older version (a new Mac often has 3.9), or a box pops up offering to install "command line developer tools", close the box and install Python with the commands below.
 
 **Mac:** paste these two commands, one at a time. The second asks for your Mac password. Nothing shows while you type, which is normal.
 
@@ -57,7 +59,7 @@ winget install -e --id Python.Python.3.12
 
 Then close the terminal and open it again, so it finds the new Python.
 
-If a command fails, or says you don't have permission (common when your computer is managed by IT), install Python from your company's software center (on a Mac, often the **Self Service** app), or download it from [python.org/downloads](https://www.python.org/downloads/). On Windows, tick **Add python.exe to PATH** on the installer's first screen.
+If a command fails, or says you don't have permission (common when your computer is managed by IT), install Python from your company's software center app, or download it from [python.org/downloads](https://www.python.org/downloads/). On Windows, tick **Add python.exe to PATH** on the installer's first screen.
 
 ### 2. Get the project
 
@@ -72,14 +74,16 @@ The next step only works from inside the project folder.
 **Mac:** paste this. It finds the project in your Downloads, Desktop, or Documents folder and moves you into it:
 
 ```bash
-cd "$(dirname "$(find ~/Downloads ~/Desktop ~/Documents -maxdepth 4 -name requirements.txt -path '*basic-chat*' 2>/dev/null | head -1)")" && pwd && ls
+P="$(find ~/Downloads ~/Desktop ~/Documents -maxdepth 4 -name requirements.txt -path '*basic-chat*' 2>/dev/null | head -1)"; if [ -n "$P" ]; then cd "$(dirname "$P")" && pwd && ls; else echo "Project folder not found. Use the drag method below."; fi
 ```
+
+If your Mac asks whether Terminal may access your Downloads, Desktop, or Documents folder, click **OK**. If you have more than one copy of the project, delete the extras first, or use the drag method below.
 
 **Windows:** open the project folder in File Explorer. Click the address bar at the top, type `cmd`, then press **Enter**. Then paste `dir`.
 
 **Check before you continue:** the list printed in the terminal must include `README.md`, `requirements.txt`, `demo`, and `architecture`. If it doesn't, you're not in the project folder yet.
 
-Another way on a Mac: type `cd` followed by a space, drag the project folder into the Terminal window, then press **Enter**.
+**Drag method (Mac):** type `cd` followed by a space, drag the project folder from Finder into the Terminal window, then press **Enter**. Then paste `ls` and check the list as above.
 
 ### 4. Copy, paste, press Enter
 
@@ -97,13 +101,15 @@ python -m pip install -r requirements.txt && python -m streamlit run demo/app.py
 
 You'll see a lot of text scroll by, and maybe a yellow `WARNING`. That's normal. The first time takes a minute or two.
 
-It's ready when you see **You can now view your Streamlit app in your browser**. Your browser then opens the app at `http://localhost:8501`. The terminal also lists "Network" and "External" addresses: ignore those.
+It's ready when you see **You can now view your Streamlit app in your browser**. Your browser then opens the app at `http://localhost:8501`. Only your own computer can open it.
 
 Leave the terminal window open while you use the app. Closing it stops the app.
 
 ### 5. Connect to the gateway
 
-The app needs a key to do anything. To get one, ask your gateway administrator for access to the gateway's console, then:
+The app needs a gateway URL and an API key. **If your administrator already gave you both, skip to item 4.**
+
+To get them yourself, ask your gateway administrator for access to the gateway's console, then:
 
 1. In the console, create an API key for this app. Some gateways call it an agent key.
 2. Copy the key. Many consoles show it **only once**, so paste it somewhere safe right away.
@@ -117,9 +123,10 @@ The app needs a key to do anything. To get one, ask your gateway administrator f
    | Right | `https://your-gateway.example.com/v1` |
    | Wrong | `https://your-gateway.example.com/v1/chat/completions` |
 
-4. In the app's left sidebar, paste the gateway URL in the first box and the API key in the second. You're done.
+4. In the app's left sidebar, paste the gateway URL in the first box and the API key in the second.
+5. Check that it works: in the **Demo prompts** box at the bottom of the page, choose **Baseline: Explain zero trust** and click **Send**. An answer means you're connected. A gray box starting with `HTTP` means something's wrong: see "If something goes wrong" below.
 
-If the sidebar is hidden, click `»` in the top-left corner to bring it back.
+If the sidebar is hidden, move your mouse to the top-left corner of the page and click the arrow that appears.
 
 The values look like this. Yours will be different:
 
@@ -130,6 +137,13 @@ The values look like this. Yours will be different:
 | Model names | `haiku-5-5`, as listed in your gateway's console or documentation |
 
 If your gateway uses different model names from the two this demo lists (`haiku-5-5` and `sonnet-5-5`), see "Changing things" below.
+
+## Using the app
+
+- **Demo prompts** (bottom of the page): pick one and click **Send**. Typing in the box filters the list. Each demo prompt is sent on its own, so an earlier prompt can't affect the next result.
+- **Message box** (very bottom): type your own question. Typed messages continue the conversation, so follow-up questions work.
+- **Start over** (sidebar): clears the conversation. It keeps the URL and key.
+- When the gateway refuses something, the app shows exactly what the gateway sent back, in a gray box starting with an HTTP code. The app never blocks or changes anything itself.
 
 ---
 
@@ -147,7 +161,7 @@ On Windows, use `python` instead of `python3`.
 
 If you used the `.venv` fix from the troubleshooting table, paste `source .venv/bin/activate` first, every time.
 
-After a restart, paste the URL and key into the sidebar again. To avoid that, save them in the file (see below).
+After a restart, paste the URL and key into the sidebar again. To avoid that, set them once per terminal window (see "Changing things" below), or save them in the file.
 
 ---
 
@@ -165,12 +179,12 @@ Open the file in a plain-text code editor, such as [Visual Studio Code](https://
 
 | To change | Edit |
 |---|---|
-| Save the key and URL so you don't paste them every time | The settings block at the top of `demo/app.py`. Replace `PASTE-YOUR-API-KEY-HERE` and `PASTE-YOUR-GATEWAY-URL-HERE`, keeping the quote marks. |
-| Model names | `MODELS` at the top of `demo/app.py`. Use your gateway's names, and put the allowed model first. |
+| Connect automatically, without pasting the URL and key | **Mac:** in the terminal, before starting the app, paste `export GATEWAY_API_KEY="sk-..." GATEWAY_BASE_URL="https://.../v1"` with your values. **Windows:** `set GATEWAY_API_KEY=sk-...` then `set GATEWAY_BASE_URL=https://.../v1`. This lasts until you close that terminal window, and nothing is saved to a file. |
+| Save the URL and key in the app permanently | The settings block at the top of `demo/app.py`. Replace `PASTE-YOUR-API-KEY-HERE` and `PASTE-YOUR-GATEWAY-URL-HERE`, keeping the quote marks. Don't share or upload the file afterwards. |
+| Model names | `MODELS` at the top of `demo/app.py`. Use your gateway's exact names. The **first** must be a model this app is allowed to use. The **second** must be one your gateway **denies** for this app: the "Restricted model" demo prompt uses it. |
+| Gateway doesn't support tool calling | Set `AGENT_USE_TOOLS = False` in `demo/app.py`. The assistant then works as a plain chatbot, and the "(database)" prompts have no data to work with. |
 | How the assistant writes (tone and length) | `SYSTEM_PROMPT` in `demo/prompts.py` |
-| The demo prompts in the dropdown | `DEMO_PROMPTS` in `demo/prompts.py` |
-| Gateway doesn't support tool calling | Set `AGENT_USE_TOOLS = False` in `demo/app.py`. The app then looks up matching records itself and sends them with the question. |
-| Rebuild the synthetic database | Delete `demo/demo_data.db`. The app creates a fresh one on the next start. |
+| The demo prompts in the dropdown | `DEMO_PROMPTS` in `demo/prompts.py`. The comments there explain each field. |
 
 After you save a change, stop and restart the app.
 
@@ -178,7 +192,8 @@ After you save a change, stop and restart the app.
 
 ## Keeping the key safe
 
-- A key pasted into the sidebar is never saved to a file. It's cleared when you close the tab or stop the app.
+- A key pasted into the sidebar, or set with `export`, is never saved to a file. It's cleared when you close the tab or stop the app.
+- The app only accepts connections from your own computer, so nobody else on the same network can open it.
 - If you save the key in `demo/app.py`, do not upload that file to GitHub or share it.
 - If a key is exposed, create a new one in the gateway console, and ask the administrator to turn off the old one.
 
@@ -207,7 +222,8 @@ After you save a change, stop and restart the app.
 | `No module named streamlit` | Run step 4 again. If you used `.venv`, paste `source .venv/bin/activate` first. |
 | `HTTP 401` | The key has a typo or was replaced. Paste it again, or create a new one. |
 | `HTTP 404` on every message | The gateway URL is wrong. Paste the base URL ending in `/v1`, not the address from a curl example. |
-| `APIConnectionError` or `APITimeoutError` | The app couldn't reach the gateway. Check the URL, and your network or VPN connection. |
+| `APIConnectionError` or `APITimeoutError` | The app couldn't reach the gateway. Check that the URL starts with `https://` and has no quotes or spaces, then check your network or VPN connection. The line under the error usually says more. |
 | A refusal on every message, even "hello" | You may have the restricted model selected. Switch **Model** in the sidebar back to the first one. |
+| An answer comes back, but nothing on screen seems to change | The page scrolls to the newest message on its own. If it didn't, scroll down. |
 | `HTTP 400` mentioning `tools` | Your gateway doesn't support tool calling. Set `AGENT_USE_TOOLS = False` in `demo/app.py`. |
 | The browser didn't open | Go to `http://localhost:8501` yourself. |

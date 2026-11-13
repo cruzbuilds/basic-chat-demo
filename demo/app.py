@@ -1,20 +1,19 @@
 """
 AI Gateway Demo
-The simplest possible agent: a chat that can search a small database of synthetic records.
-Every request goes through the AI gateway. The app adds no security logic of its own:
-whatever the gateway allows or refuses is shown exactly as the gateway sends it.
+The simplest possible agent: a chat assistant with one tool, which searches a small
+database of synthetic records. Every request goes through the AI gateway. The app adds
+no security logic of its own: whatever the gateway refuses is shown exactly as it was sent.
 
 Run it from the main project folder:  python3 -m streamlit run demo/app.py
 """
 
-import html
-import json
 import os
 
 import streamlit as st
+import streamlit.components.v1 as components
 from openai import APIStatusError, OpenAI
 
-from database import TOOLS, lookup_records, run_tool
+from database import TOOLS, run_tool
 from prompts import DEMO_PROMPTS, SYSTEM_PROMPT
 
 
@@ -36,95 +35,77 @@ from prompts import DEMO_PROMPTS, SYSTEM_PROMPT
 API_KEY = "PASTE-YOUR-API-KEY-HERE"
 BASE_URL = "PASTE-YOUR-GATEWAY-URL-HERE"
 
-# Models that appear in the Model dropdown.
-# REPLACE these with the model names your gateway gives you, spelled exactly as they
-# appear in your gateway's console or documentation.
-# Put the model your agent IS allowed to use first. The "Restricted model" prompt uses the second.
+# The two models in the Model dropdown, spelled exactly as your gateway names them.
+#   First:  a model this app IS allowed to use. It's selected when the app starts.
+#   Second: a model your gateway DENIES for this app. The "Restricted model" demo prompt uses it.
 MODELS = ["haiku-5-5", "sonnet-5-5"]
 
 # How long to wait for an answer before giving up, in seconds.
-REQUEST_TIMEOUT_SECONDS = 30
+REQUEST_TIMEOUT_SECONDS = 60
 
 # The assistant searches the synthetic database with tool calls. If your gateway doesn't
-# support tool calling, set this to False: the app then looks up matching records itself
-# and sends them along with the question.
+# support tool calling, set this to False. The assistant then works as a plain chatbot,
+# and the "(database)" demo prompts won't have any data to work with.
 AGENT_USE_TOOLS = True
 
 # =============================================================================
 # End of settings. You should not need to change anything below this line.
 # =============================================================================
 
-# Environment variables, if set, fill these in too. The sidebar can override both.
-API_KEY = os.getenv("GATEWAY_API_KEY", API_KEY)
-BASE_URL = os.getenv("GATEWAY_BASE_URL", BASE_URL)
-SAVED_KEY = "" if API_KEY.startswith("PASTE") else API_KEY
-SAVED_URL = "" if BASE_URL.startswith("PASTE") else BASE_URL
+# Environment variables GATEWAY_API_KEY and GATEWAY_BASE_URL, if set, take priority.
+SAVED_KEY = os.getenv("GATEWAY_API_KEY") or ("" if API_KEY.startswith("PASTE") else API_KEY)
+SAVED_URL = os.getenv("GATEWAY_BASE_URL") or ("" if BASE_URL.startswith("PASTE") else BASE_URL)
 MAX_TOOL_ROUNDS = 5
 
-
-# -----------------------------------------------------------------------------
-# Page setup and styling
-# -----------------------------------------------------------------------------
-
 st.set_page_config(page_title="AI Gateway Demo", layout="centered")
-
-st.markdown(
-    """
-    <style>
-      #MainMenu, footer, [data-testid="stDecoration"] {visibility: hidden;}
-      html, body, [class*="css"] {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-      }
-      .block-container {padding-top: 2.5rem; max-width: 820px;}
-      h1 {font-weight: 600; font-size: 1.7rem; letter-spacing: -0.01em;}
-      .subtle {color: #6B6A66; font-size: 0.88rem;}
-      .meta {color: #8A8984; font-size: 0.78rem; margin-top: 0.35rem;}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("<style>#MainMenu, footer, [data-testid='stDecoration'] {visibility: hidden;}</style>",
+            unsafe_allow_html=True)
 
 
 # -----------------------------------------------------------------------------
 # Talking to the gateway
 # -----------------------------------------------------------------------------
 
-def ask(model, history):
+def raw(status, body):
+    """The gateway's response, shown as is."""
+    return {"ok": False, "text": f"HTTP {status}\n\n{body}"}
+
+
+def ask(gateway_url, api_key, model, history):
     """
     Send the conversation through the gateway, running any database searches the model asks for.
-    Returns the answer, or the gateway's response exactly as it came back if the request failed.
+    Returns the answer, or the gateway's response exactly as it came back if it wasn't one.
     """
-    client = OpenAI(base_url=BASE_URL, api_key=API_KEY, timeout=REQUEST_TIMEOUT_SECONDS, max_retries=0)
+    client = OpenAI(base_url=gateway_url, api_key=api_key, timeout=REQUEST_TIMEOUT_SECONDS, max_retries=0)
     messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
     steps = []
-
-    if not AGENT_USE_TOOLS:
-        question = messages[-1]["content"]
-        rows = lookup_records(question)
-        messages[-1] = {"role": "user", "content": f"{question}\n\nDatabase records:\n{json.dumps(rows, indent=1)}"}
-        steps.append(f"Looked up {len(rows)} records")
-
     try:
         for _ in range(MAX_TOOL_ROUNDS):
-            request = {"model": model, "messages": messages, "max_tokens": 1024}
+            request = {"model": model, "messages": messages, "max_tokens": 4096}
             if AGENT_USE_TOOLS:
                 request["tools"] = TOOLS
-            message = client.chat.completions.create(**request).choices[0].message
+            response = client.chat.completions.with_raw_response.create(**request)
+            try:
+                message = response.parse().choices[0].message
+            except Exception:  # not a normal answer: show what the gateway sent
+                return {**raw(response.status_code, response.text), "steps": steps}
             if not message.tool_calls:
-                return {"ok": True, "text": message.content or "", "steps": steps}
-            messages.append({"role": "assistant", "content": message.content or "", "tool_calls": [
+                if not message.content:
+                    return {**raw(response.status_code, response.text), "steps": steps}
+                return {"ok": True, "text": message.content, "steps": steps}
+            messages.append({"role": "assistant", "content": message.content, "tool_calls": [
                 {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
                 for tc in message.tool_calls]})
             for tc in message.tool_calls:
                 steps.append(f"{tc.function.name}({tc.function.arguments})")
                 messages.append({"role": "tool", "tool_call_id": tc.id,
                                  "content": run_tool(tc.function.name, tc.function.arguments)})
-        return {"ok": False, "text": f"Stopped after {MAX_TOOL_ROUNDS} rounds of tool calls.", "steps": steps}
+        return {"ok": False, "text": f"Stopped after {MAX_TOOL_ROUNDS} rounds of database searches.", "steps": steps}
     except APIStatusError as e:
-        # The gateway's own response, unchanged.
-        return {"ok": False, "text": f"HTTP {e.status_code}\n\n{e.response.text}", "steps": steps}
+        return {**raw(e.status_code, e.response.text), "steps": steps}
     except Exception as e:
-        return {"ok": False, "text": f"{type(e).__name__}: {e}", "steps": steps}
+        cause = f"\n{e.__cause__}" if e.__cause__ else ""
+        return {"ok": False, "text": f"{type(e).__name__}: {e}{cause}", "steps": steps}
 
 
 def show(reply):
@@ -133,7 +114,7 @@ def show(reply):
     else:
         st.code(reply["text"], language=None, wrap_lines=True)
     if reply["steps"]:
-        st.markdown(f'<div class="meta">Database: {html.escape(" · ".join(reply["steps"]))}</div>', unsafe_allow_html=True)
+        st.caption("Database: " + " · ".join(reply["steps"]))
 
 
 # -----------------------------------------------------------------------------
@@ -141,29 +122,29 @@ def show(reply):
 # -----------------------------------------------------------------------------
 
 st.session_state.setdefault("messages", [])
+st.session_state.setdefault("pending", None)
 
 with st.sidebar:
     st.markdown("### AI Gateway")
-    BASE_URL = st.text_input("Gateway URL", value=SAVED_URL, placeholder="https://.../v1").strip()
-    API_KEY = st.text_input("API key", value=SAVED_KEY, type="password", placeholder="sk-...").strip()
-    st.caption("Never saved to a file. Cleared when you close the tab or stop the app.")
+    gateway_url = st.text_input("Gateway URL", value=SAVED_URL, placeholder="https://.../v1").strip()
+    api_key = st.text_input("API key", type="password", placeholder="sk-...").strip() or SAVED_KEY
+    st.caption("Using the key from your settings." if SAVED_KEY else
+               "What you paste here is never saved to a file. It's cleared when you close the tab.")
     st.write("")
     model = st.selectbox("Model", MODELS)
     st.divider()
     if st.button("Start over", width="stretch"):
-        st.session_state.messages = []
+        st.session_state.messages, st.session_state.pending = [], None
         st.rerun()
 
 
 # -----------------------------------------------------------------------------
-# Main area: the conversation, then the demo prompts and message box at the bottom
+# Main area: the conversation, with the demo prompts and message box pinned at the bottom
 # -----------------------------------------------------------------------------
 
 st.title("AI Gateway Demo")
-st.markdown('<div class="subtle">Every request is sent through the AI gateway. The assistant can search a '
-            'database of personnel and mission records. <b>All of the data is synthetic.</b></div>',
-            unsafe_allow_html=True)
-st.write("")
+st.caption("Every request is sent through the AI gateway. The assistant can search a database of "
+           "personnel and mission records. **All of the data is synthetic.**")
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"], avatar=":material/person:" if msg["role"] == "user" else ":material/smart_toy:"):
@@ -172,36 +153,52 @@ for msg in st.session_state.messages:
         else:
             show(msg["reply"])
 
-# Pinned to the bottom of the page, next to the message box. Newer Streamlit calls this
-# container st.bottom, older versions st._bottom. Without either, it sits under the conversation.
-with getattr(st, "bottom", None) or getattr(st, "_bottom", None) or st.container():
+# Answer the question that was just sent. It was saved first, so it stays on screen
+# even if someone clicks something while the answer is on its way.
+pending = st.session_state.pending
+if pending:
+    with st.chat_message("assistant", avatar=":material/smart_toy:"):
+        with st.spinner("Thinking"):
+            reply = ask(gateway_url, api_key, pending["model"], pending["history"])
+            st.session_state.messages.append({"role": "assistant", "reply": reply})
+            st.session_state.pending = None
+    st.rerun()
+
+# Keep the newest message in view.
+if st.session_state.messages:
+    scroll = f"""<script> /* {len(st.session_state.messages)} */ (() => {{
+      const page = window.parent.document;
+      setTimeout(() => ["stMain", "stAppScrollToBottomContainer"].forEach(id => {{
+        const el = page.querySelector(`[data-testid="${{id}}"]`);
+        if (el) el.scrollTo({{top: el.scrollHeight}});
+      }}), 150);
+    }})();</script>"""
+    try:
+        st.html(scroll, unsafe_allow_javascript=True)  # newer Streamlit
+    except TypeError:
+        components.html(scroll, height=0)  # older Streamlit
+
+with getattr(st, "bottom", None) or st._bottom:  # newer Streamlit: st.bottom; older: st._bottom
     col1, col2 = st.columns([5, 1], vertical_alignment="bottom")
     picked = col1.selectbox("Demo prompts", DEMO_PROMPTS, format_func=lambda p: f'{p["category"]}: {p["name"]}')
     send_demo = col2.button("Send", type="primary", width="stretch")
     typed = st.chat_input("Message the assistant")
 
-prompt, prompt_model = None, model
-if send_demo:
-    prompt = picked["prompt"]
-    if picked.get("model") == "restricted":
-        prompt_model = MODELS[-1]
-elif typed:
-    prompt = typed
-
-if prompt:
-    if not (BASE_URL and API_KEY):
+if send_demo or typed:
+    if not (gateway_url and api_key):
         st.warning("Enter the gateway URL and API key in the sidebar first.")
     else:
-        # Earlier turns that got an answer are sent along, so follow-up questions work.
-        history = []
-        msgs = st.session_state.messages
-        for user_msg, reply in zip(msgs[0::2], msgs[1::2]):
-            if reply["reply"]["ok"]:
-                history += [{"role": "user", "content": user_msg["content"]},
-                            {"role": "assistant", "content": reply["reply"]["text"]}]
-        history.append({"role": "user", "content": prompt})
-        with st.spinner("Thinking"):
-            reply = ask(prompt_model, history)
-        st.session_state.messages += [{"role": "user", "content": prompt},
-                                      {"role": "assistant", "reply": reply}]
+        if send_demo:
+            # Demo prompts are sent on their own, so an earlier prompt can't affect the result.
+            text, use_model, history = picked["prompt"], MODELS[1] if picked.get("model") == "restricted" else model, []
+        else:
+            # Typed messages continue the conversation: earlier turns that got an answer are sent along.
+            text, use_model, history = typed, model, []
+            msgs = st.session_state.messages
+            for user_msg, answer in zip(msgs[0::2], msgs[1::2]):
+                if answer["reply"]["ok"]:
+                    history += [{"role": "user", "content": user_msg["content"]},
+                                {"role": "assistant", "content": answer["reply"]["text"]}]
+        st.session_state.messages.append({"role": "user", "content": text})
+        st.session_state.pending = {"model": use_model, "history": history + [{"role": "user", "content": text}]}
         st.rerun()

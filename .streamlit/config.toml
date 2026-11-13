@@ -11,6 +11,8 @@ font = "sans serif"
 
 [server]
 showEmailPrompt = false
+# Only this computer can open the app, not others on the same network.
+address = "localhost"
 
 [client]
 toolbarMode = "minimal"

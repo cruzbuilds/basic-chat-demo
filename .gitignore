@@ -6,6 +6,3 @@ venv/
 
 # Mac
 .DS_Store
-
-# Synthetic demo database (rebuilt automatically)
-demo/demo_data.db
