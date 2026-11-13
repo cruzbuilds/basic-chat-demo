@@ -3,7 +3,7 @@
 A simple chatbot that shows how an application connects to an AI gateway, and what the gateway controls once it does:
 
 - **Which models can be used.** One model is allowed, the other is blocked.
-- **What it costs.** Tokens, response time, and cost for every message.
+- **Where visibility lives.** The app tracks nothing itself. Usage, cost, and logs are recorded by the gateway.
 - **What gets stopped.** Prompt injection, harmful requests, and personal data.
 - **How it is tested.** One click runs a test set across eight dimensions of responsible AI.
 
@@ -123,8 +123,7 @@ Open the file in a plain-text code editor, such as [Visual Studio Code](https://
 | To change | Edit |
 |---|---|
 | Save the key and URL so you don't paste them every time | The settings block at the top of `demo/app.py`. Replace `PASTE-YOUR-API-KEY-HERE` and `PASTE-YOUR-GATEWAY-URL-HERE`, keeping the quote marks. |
-| Model names | `MODELS` at the top of `demo/app.py`. Use your gateway's names, and put the allowed model first. Add a matching line to `PRICE_PER_MILLION_TOKENS` just below it. |
-| Prices | `PRICE_PER_MILLION_TOKENS` at the top of `demo/app.py` |
+| Model names | `MODELS` at the top of `demo/app.py`. Use your gateway's names, and put the allowed model first. |
 | How the assistant writes (tone, length, rules) | `SYSTEM_PROMPT` in `demo/prompts.py` |
 | Demo prompts and risk tests | `DEMO_PROMPTS` in `demo/prompts.py` |
 
@@ -146,7 +145,6 @@ After you save a change, stop and restart the app.
 |---|---|
 | Gateway | The checkpoint every AI request passes through. It decides which models may be used and what gets blocked. |
 | API key | A password for an application. It tells the gateway which agent is asking. |
-| Token | The unit AI models are billed in, roughly three-quarters of a word. |
 | HTTP 403, 400, 404 | Codes the gateway sends back. 403 and 400 usually mean "not allowed". 404 usually means the URL is wrong. |
 | `/v1` | The last part of the gateway URL. It must be included. |
 

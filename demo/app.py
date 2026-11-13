@@ -1,7 +1,7 @@
 """
 AI Gateway Demo
 A simple chatbot that sends every request through an AI gateway,
-so you can show model restriction, cost and usage visibility, and guardrails.
+so you can show model restriction and guardrails. Usage, cost, and logs live in the gateway.
 
 Run it from the main project folder:  python3 -m streamlit run demo/app.py
 """
@@ -10,7 +10,6 @@ import html
 import os
 import re
 import time
-from datetime import datetime
 
 import pandas as pd
 import streamlit as st
@@ -43,23 +42,12 @@ BASE_URL = "PASTE-YOUR-GATEWAY-URL-HERE"
 # Put the model your agent IS allowed to use first. The risk tests use the first one.
 MODELS = ["haiku-5-5", "sonnet-5-5"]
 
-# Estimated price in US dollars per 1 million tokens: (input, output), one line per model.
-# These are list prices. Change them to match your models and contract.
-PRICE_PER_MILLION_TOKENS = {
-    "haiku-5-5": (0.10, 0.50),
-    "sonnet-5-5": (2.00, 10.00),
-}
-
 # Show the answer word by word as it is written. Turn off if responses fail.
 STREAM_RESPONSES = False
 
 # If the gateway returns a normal response containing its own "blocked" message,
 # paste a phrase from that message here so the app labels it as blocked.
 GATEWAY_BLOCK_PHRASES = ["blocked by guardrail", "blocked by policy", "blocked by the gateway"]
-
-# If the gateway reports cost in a response header, put the exact header name here.
-# Check the "Response headers" panel on the Request log screen to find it.
-GATEWAY_COST_HEADER = ""
 
 # How long to wait for an answer before giving up, in seconds.
 REQUEST_TIMEOUT_SECONDS = 30
@@ -139,26 +127,6 @@ def make_client():
     return OpenAI(base_url=BASE_URL, api_key=API_KEY, timeout=REQUEST_TIMEOUT_SECONDS, max_retries=0)
 
 
-def estimate_cost(model, tokens_in, tokens_out):
-    if model not in PRICE_PER_MILLION_TOKENS or tokens_in is None:
-        return None
-    price_in, price_out = PRICE_PER_MILLION_TOKENS[model]
-    return (tokens_in * price_in + (tokens_out or 0) * price_out) / 1_000_000
-
-
-def gateway_cost_from_headers(headers):
-    """Use the gateway's own cost figure, if GATEWAY_COST_HEADER names one."""
-    if not GATEWAY_COST_HEADER:
-        return None
-    for key, value in headers.items():
-        if key.lower() == GATEWAY_COST_HEADER.lower():
-            try:
-                return float(str(value).replace("$", "").strip())
-            except ValueError:
-                return None
-    return None
-
-
 def error_message(error):
     """Pull the most readable message out of a gateway error."""
     body = getattr(error, "body", None)
@@ -229,12 +197,6 @@ def test_model(test):
     return choice
 
 
-def read_usage(usage, result):
-    if usage is not None:
-        result["tokens_in"] = getattr(usage, "prompt_tokens", None)
-        result["tokens_out"] = getattr(usage, "completion_tokens", None)
-
-
 def call_gateway(model, history, on_text=None):
     """
     Send one chat request through the gateway and describe what happened.
@@ -247,11 +209,9 @@ def call_gateway(model, history, on_text=None):
     """
     result = {
         "status": "Error", "text": "", "detail": "", "http": None, "model": model,
-        "tokens_in": None, "tokens_out": None, "latency_s": None,
-        "cost": None, "cost_source": "", "headers": {}, "practice": not IS_CONFIGURED,
+        "practice": not IS_CONFIGURED,
     }
     messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
-    start = time.perf_counter()
 
     try:
         if not IS_CONFIGURED:
@@ -260,13 +220,11 @@ def call_gateway(model, history, on_text=None):
         elif STREAM_RESPONSES:
             raw = make_client().chat.completions.with_raw_response.create(
                 model=model, messages=messages, max_tokens=1024,
-                stream=True, stream_options={"include_usage": True},
+                stream=True,
             )
-            result["headers"] = dict(raw.headers)
             result["http"] = raw.status_code
             finish_reason = None
             for chunk in raw.parse():
-                read_usage(getattr(chunk, "usage", None), result)
                 choices = getattr(chunk, "choices", None) or []
                 if choices:
                     finish_reason = choices[0].finish_reason or finish_reason
@@ -281,7 +239,6 @@ def call_gateway(model, history, on_text=None):
             raw = make_client().chat.completions.with_raw_response.create(
                 model=model, messages=messages, max_tokens=1024,
             )
-            result["headers"] = dict(raw.headers)
             result["http"] = raw.status_code
             response = raw.parse()
             choices = getattr(response, "choices", None)
@@ -291,13 +248,11 @@ def call_gateway(model, history, on_text=None):
                                     f"It started with: {raw.http_response.text[:300]!r}")
             else:
                 result["text"] = message.content or ""
-                read_usage(getattr(response, "usage", None), result)
                 result.update(classify_answer(result["text"], choices[0].finish_reason))
 
     except APIStatusError as e:
         code = e.status_code
         result["http"] = code
-        result["headers"] = dict(e.response.headers)
         detail = error_message(e)
         # Some gateways answer "model not allowed" with 404 "model not found". Count that as a block
         # only when the message names the model, so a wrong URL (also 404) stays an error.
@@ -323,32 +278,6 @@ def call_gateway(model, history, on_text=None):
     except Exception as e:  # never show a raw traceback during a demo
         result["detail"] = f"Something unexpected went wrong talking to the gateway ({type(e).__name__}: {str(e)[:300]})."
 
-    result["latency_s"] = round(time.perf_counter() - start, 2)
-
-    # Tokens and cost
-    if result["status"] in ("Allowed", "Refused") and result["tokens_in"] is None:
-        # The gateway didn't report usage, so estimate it: about 4 characters per token.
-        result["tokens_in"] = sum(len(m["content"]) for m in messages) // 4
-        result["tokens_out"] = len(result["text"]) // 4
-    reported = gateway_cost_from_headers(result["headers"])
-    if reported is not None:
-        result["cost"], result["cost_source"] = reported, "gateway"
-    elif result["tokens_in"] is not None:
-        result["cost"] = estimate_cost(model, result["tokens_in"], result["tokens_out"])
-        result["cost_source"] = "practice" if result["practice"] else "estimate"
-
-    st.session_state.log.append({
-        "Time": datetime.now().strftime("%H:%M:%S"),
-        "Model": model,
-        "Result": result["status"] + (" (practice)" if result["practice"] else ""),
-        "HTTP": result["http"],
-        "Tokens in": result["tokens_in"],
-        "Tokens out": result["tokens_out"],
-        "Response time (s)": result["latency_s"],
-        "Cost (USD)": result["cost"],
-        "Detail": result["detail"],
-    })
-    st.session_state.last_headers = result["headers"]
     return result
 
 
@@ -359,25 +288,6 @@ def call_gateway(model, history, on_text=None):
 def safe(text):
     """Make text safe to place inside the app's own HTML snippets."""
     return html.escape(str(text or "")).replace("\n", "<br>")
-
-
-def fmt_cost(cost, source=""):
-    if cost is None:
-        return "no charge"
-    label = {"estimate": " est.", "practice": " simulated"}.get(source, "")
-    return f"${cost:,.6f}{label}"
-
-
-def meta_line(r):
-    parts = [r["model"]]
-    if r["tokens_in"] is not None:
-        parts.append(f"{r['tokens_in'] or 0:,} in / {r['tokens_out'] or 0:,} out")
-    if r["latency_s"] is not None:
-        parts.append(f"{r['latency_s']} s")
-    parts.append(fmt_cost(r["cost"], r["cost_source"]))
-    if r["status"] == "Refused":
-        parts.append("refused by model")
-    return " &middot; ".join(safe(p) for p in parts)
 
 
 def show_result(r):
@@ -391,7 +301,6 @@ def show_result(r):
         )
     else:
         st.markdown(r["text"])
-    st.markdown(f'<div class="meta">{meta_line(r)}</div>', unsafe_allow_html=True)
 
 
 def judge(test, r):
@@ -417,13 +326,11 @@ def judge(test, r):
 # -----------------------------------------------------------------------------
 
 st.session_state.setdefault("messages", [])     # chat history shown on screen
-st.session_state.setdefault("log", [])          # every request sent to the gateway
 st.session_state.setdefault("test_results", [])
-st.session_state.setdefault("last_headers", {})
 
 
 # -----------------------------------------------------------------------------
-# Sidebar: connection, model choice, usage
+# Sidebar: connection and model choice
 # -----------------------------------------------------------------------------
 
 with st.sidebar:
@@ -445,24 +352,9 @@ with st.sidebar:
     model = st.selectbox("Model", MODELS)
 
     st.divider()
-    st.markdown("**Session usage**")
-    log = st.session_state.log
-    total_cost = sum(row["Cost (USD)"] or 0 for row in log)
-    total_tokens = sum((row["Tokens in"] or 0) + (row["Tokens out"] or 0) for row in log)
-    latencies = [row["Response time (s)"] for row in log if row["Result"] in ("Allowed", "Refused")]
-    c1, c2 = st.columns(2)
-    c1.metric("Requests", len(log))
-    c2.metric("Blocked", sum(row["Result"] == "Blocked" for row in log))
-    c1.metric("Tokens", f"{total_tokens:,}")
-    c2.metric("Avg response", f"{sum(latencies) / len(latencies):.2f} s" if latencies else "-")
-    st.metric("Total cost", f"${total_cost:,.6f}")
-    st.caption("Cost is estimated from token counts unless the gateway reports it.")
-
-    st.divider()
-    if st.button("Start over", width="stretch", help="Clears the chat, usage totals, log, and test results"):
-        for key in ("messages", "log", "test_results"):
+    if st.button("Start over", width="stretch", help="Clears the chat and test results"):
+        for key in ("messages", "test_results"):
             st.session_state[key] = []
-        st.session_state.last_headers = {}
         st.session_state.tests_stopped = False
         st.rerun()
 
@@ -472,14 +364,14 @@ with st.sidebar:
 # -----------------------------------------------------------------------------
 
 st.title("AI Gateway Demo")
-st.markdown('<div class="subtle">Every request in this app is routed through the AI gateway, '
-            'which enforces model access, guardrails, and usage tracking.</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtle">Every request in this app is sent through the AI gateway.</div>',
+            unsafe_allow_html=True)
 st.write("")
 if not IS_CONFIGURED:
     st.info("Practice mode. Nothing is being sent to the gateway, and every response is simulated. "
             "Enter the gateway URL and API key in the sidebar to connect.")
 
-view = st.segmented_control("View", ["Chat", "Risk tests", "Request log"], default="Chat",
+view = st.segmented_control("View", ["Chat", "Risk tests"], default="Chat",
                             label_visibility="collapsed") or "Chat"
 
 # ---------------------------------- Chat -------------------------------------
@@ -534,10 +426,10 @@ if view == "Chat":
 
         st.session_state.messages += [{"role": "user", "content": prompt},
                                       {"role": "assistant", "result": result}]
-        st.rerun()  # refresh the sidebar totals
+        st.rerun()
 
 # -------------------------------- Risk tests ---------------------------------
-elif view == "Risk tests":
+else:
     st.markdown(
         "Each test below targets one of the eight dimensions of responsible AI. The tests are "
         "defined before the system is built, and rerun every time a policy, prompt, or model changes."
@@ -572,11 +464,10 @@ elif view == "Risk tests":
                    "Check the gateway URL and your network, then run the tests again.")
     if results:
         scores = [x["score"] for x in results]
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3 = st.columns(3)
         c1.metric("Passed", f"{scores.count('Pass')} / {len(scores)}")
         c2.metric("Failed or error", scores.count("Fail") + scores.count("Error"))
         c3.metric("Needs review", scores.count("Review"))
-        c4.metric("Test run cost", f"${sum(x['result']['cost'] or 0 for x in results):,.6f}")
 
         stopped_by = {"Blocked": "Gateway", "Refused": "Model"}
         table = pd.DataFrame([{
@@ -587,7 +478,6 @@ elif view == "Risk tests":
             "Result": x["result"]["status"],
             "Stopped by": stopped_by.get(x["result"]["status"], ""),
             "Score": x["score"],
-            "Response time (s)": x["result"]["latency_s"],
         } for x in results])
         st.dataframe(table, hide_index=True, width="stretch")
 
@@ -603,28 +493,3 @@ elif view == "Risk tests":
             "Expected": t["expect"].capitalize(), "Model": test_model(t),
         } for t in DEMO_PROMPTS])
         st.dataframe(table, hide_index=True, width="stretch")
-
-# ------------------------------- Request log ---------------------------------
-else:
-    if not st.session_state.log:
-        st.markdown('<div class="subtle">No requests yet. Send a message or run the tests.</div>',
-                    unsafe_allow_html=True)
-    else:
-        df = pd.DataFrame(st.session_state.log)
-
-        def cell(column, value):
-            if value is None or value == "":
-                return ""
-            if column == "Cost (USD)":
-                return f"${value:,.6f}"
-            if column in ("Tokens in", "Tokens out"):
-                return f"{int(value):,}"
-            return str(value)
-
-        shown = pd.DataFrame([{col: cell(col, val) for col, val in row.items()} for row in st.session_state.log])
-        st.dataframe(shown, hide_index=True, width="stretch",
-                     column_config={"Detail": st.column_config.TextColumn(width="large")})
-        st.download_button("Download log as CSV", df.to_csv(index=False), "gateway_log.csv", "text/csv")
-        with st.expander("Response headers from the last request"):
-            st.caption("Shows any request IDs, cost, or policy information the gateway adds.")
-            st.json(st.session_state.last_headers)

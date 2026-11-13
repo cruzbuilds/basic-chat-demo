@@ -10,7 +10,7 @@
 
 1. **One control point.** Every AI request passes through the gateway, so the organization sets the rules once instead of in every app.
 2. **No extra work for builders.** An app connects with a URL and a key. Nothing else in the code is specific to the gateway.
-3. **It can be measured and tested.** Cost, usage, and safety are visible and repeatable, not taken on trust.
+3. **Visibility comes with it.** The app has no logging, usage, or cost tracking of its own, yet every request is recorded in the gateway. And the policies can be tested, not taken on trust.
 
 Every act below serves one of these three. If you run short on time, cut Act 2 before anything else.
 
@@ -26,8 +26,7 @@ You can learn every click in practice mode, with no key. A banner at the top of 
 |---|---|
 | Every answer is the same placeholder sentence. | Real answers. Acts 5b and 6 depend on them. |
 | Blocks and refusals come from simple keyword rules, prefixed "Practice mode:". | The gateway's own policies decide. |
-| Costs are labeled "simulated". | Costs are estimates from real token counts. |
-| **Response headers from the last request** shows `{}`. | It shows what the gateway sends back. |
+| Nothing is recorded anywhere. | Every request appears in the gateway console. Act 4 depends on it. |
 | **Run all tests** takes about 10 seconds. | It takes up to a minute. |
 
 Rehearse in practice mode to learn the screens. Rehearse once with the real key to learn the story.
@@ -43,16 +42,16 @@ Rehearse in practice mode to learn the screens. Rehearse once with the real key 
 - [ ] Do a full rehearsal with the real key and a timer. Run **Risk tests** and fill in the rehearsal numbers at the bottom of this page. Nothing in the live demo should surprise you.
 - [ ] For every test where the result surprised you, decide now what you will say about it. See "If something goes wrong" below.
 - [ ] If a prompt that should be blocked comes back as a normal answer that contains the gateway's block message, copy a phrase from that message into `GATEWAY_BLOCK_PHRASES` in `demo/app.py`.
-- [ ] Find out whether you can show the gateway's own usage or audit view in the gateway console. Showing the same requests recorded centrally is the strongest proof in the demo.
+- [ ] Make sure you can open the gateway console's usage, cost, and log views with your account, and find where a request shows up after you send it. Act 4 is built on this, and it's the strongest proof in the demo.
 - [ ] Get answers to the "Know before you go" questions at the bottom of this page.
 
 ### 15 minutes before
 
 - [ ] Start the app and paste the gateway URL and key into the sidebar **before** anyone joins. The key field is masked, but don't paste it on screen.
 - [ ] Set the sidebar **Model** to `haiku-5-5`.
-- [ ] Send one Baseline prompt to warm up the connection, then click **Start over** in the sidebar so all totals read zero.
-- [ ] Close other tabs, turn on Do Not Disturb, and set the browser zoom to 125% so the room can read the screen. At that zoom, **Session usage** and **Start over** sit lower in the sidebar: scroll the sidebar down to reach them.
-- [ ] Log in to the gateway console in a second tab, if you will show it.
+- [ ] Send one Baseline prompt to warm up the connection, then click **Start over** in the sidebar to clear the chat.
+- [ ] Close other tabs, turn on Do Not Disturb, and set the browser zoom to 125% so the room can read the screen. At that zoom, **Start over** sits lower in the sidebar: scroll the sidebar down to reach it.
+- [ ] Log in to the gateway console in a second tab, and open the view you'll show in Act 4.
 - [ ] Keep the terminal window open but out of view. If the app ever stops, you will restart it from there.
 
 Do not refresh the browser during the demo. A refresh clears the pasted key. Use **Start over** instead.
@@ -66,7 +65,7 @@ Do not refresh the browser during the demo. A refresh clears the pasted key. Use
 | 1. Opening | 2 | The app, connected | One control point |
 | 2. Normal use | 2 | A normal question and follow-up | No extra work for builders |
 | 3. Model access | 3 | A restricted model gets blocked | One control point |
-| 4. Cost and usage | 3 | Per-message cost, totals, request log | Measured, not trusted |
+| 4. Visibility | 3 | The same requests, in the gateway console | Visibility comes with it |
 | 5. Guardrails | 5 | Injection, harmful request, personal data | One control point, layered defense |
 | 6. Risk testing | 4 | The full test set across eight dimensions | Tested, not trusted |
 | 7. Close | 1 | Recap and next step | |
@@ -81,7 +80,7 @@ Do not refresh the browser during the demo. A refresh clears the pasted key. Use
 
 > "Every team wants to use AI, and every one of them could connect to a model a different way, with different rules, different costs, and no shared view of what's happening. The gateway puts one control point between our applications and the models.
 >
-> This is a deliberately simple chatbot. The only thing in it that knows about the gateway is a URL and a key. Everything I'm about to show, the model restrictions, the cost tracking, the blocked requests, is enforced by the gateway, not by this app."
+> This is a deliberately simple chatbot. The only thing in it that knows about the gateway is a URL and a key. Everything I'm about to show, the model restrictions, the blocked requests, the usage and cost records, comes from the gateway, not from this app."
 
 **Then:** "Let me show you what normal looks like first."
 
@@ -91,11 +90,9 @@ Do not refresh the browser during the demo. A refresh clears the pasted key. Use
 
 **Do:** Open **Demo prompts**. Set **Category** to **Baseline** and **Prompt** to **Explain zero trust**. Click **Send prompt**.
 
-**Point to** the small gray line under the answer: model, tokens in and out, response time, cost.
-
 **Say:**
 
-> "That's an ordinary answer. Short and direct, which is how we've instructed the assistant to write. Underneath it you can see which model answered, how many tokens it used, how long it took, and what it cost. Keep an eye on that line, because we'll come back to it."
+> "That's an ordinary answer. Short and direct, which is how we've instructed the assistant to write. Notice there's nothing else on screen: no usage counters, no cost meter, no logs. This is what any team's chatbot looks like. Hold that thought, because we'll come back to it."
 
 **Do:** Type a follow-up in the chat box, for example: `Now say that in one sentence for an executive.`
 
@@ -107,13 +104,13 @@ Do not refresh the browser during the demo. A refresh clears the pasted key. Use
 
 **Do:** In the sidebar, change **Model** to `sonnet-5-5`. Say out loud that you're switching. Type: `Summarize zero trust in one sentence.`
 
-**Expected:** a red-edged box saying **Blocked by gateway**, an HTTP code (often 403, sometimes 404 "model not found"), and the gateway's own message. The gray line says "no charge".
+**Expected:** a red-edged box saying **Blocked by gateway**, an HTTP code (often 403, sometimes 404 "model not found"), and the gateway's own message.
 
 **Say:**
 
 > "The app has both models in its list, and the code would happily call either one. The gateway said no. This agent is approved for one model, and that decision belongs to the organization, not to each developer.
 >
-> Notice the gray line: no charge. The request was stopped before it ever reached the model."
+> The request was stopped before it ever reached the model."
 
 **Why it matters (if asked):** model approval, cost control (larger models cost more per token), and data-handling approvals can all be tied to which models an agent may use.
 
@@ -121,31 +118,26 @@ Do not refresh the browser during the demo. A refresh clears the pasted key. Use
 
 ---
 
-## Act 4: Cost and usage (3 minutes)
-
-**Do:** Scroll the sidebar down to **Session usage**. Point to requests, blocked, tokens, average response time, and total cost.
+## Act 4: Visibility in the gateway (3 minutes)
 
 **Say:**
 
-> "Every request is counted, including the blocked ones. This is the app's own view."
+> "So far you've seen the app. It doesn't count anything. It has no logging, no usage tracking, and no cost meter, and that's deliberate: no team should have to build those. Let's look at what the organization sees."
 
-**Do:** Click **Request log** at the top. Walk through the columns: time, model, result, HTTP code, tokens, response time, cost.
+**Do:** Switch to the gateway console tab. Open the usage or log view you found during rehearsal.
 
-**Do:** Open **Response headers from the last request**.
+**Point to:**
+- The requests you just sent, including the one to the restricted model that was blocked.
+- Which agent and which model each request used.
+- The usage and cost for those requests.
 
 **Say:**
 
-> "These are the details the gateway sends back with every response, such as request IDs and policy information. That's what lets the organization trace any request end to end."
+> "Every request from the last few minutes is here, recorded centrally: allowed, blocked, which model, what it cost. The app didn't have to do anything to make that happen. Every application connected to the gateway gets this for free, and the organization sees all of them in one place."
 
-**Be accurate about cost:**
+**Make it concrete** with numbers from your rehearsal, read from the console: "A typical question costs about [cost per request]. At [expected requests per day] requests a day, that's about [daily cost]." Work this out before the demo. Don't calculate it live.
 
-> "The cost here is an estimate at list price, calculated from the token counts. The gateway's records are the source of truth for billing."
-
-**Make it concrete:** use your rehearsal numbers. For example: "A typical question here costs about [cost per request]. At [expected requests per day] requests a day, that's about [daily cost]." Work this out before the demo. Don't calculate it live.
-
-**If you can show the gateway console:** switch to it and find the same requests.
-
-> "Same requests, recorded centrally. The app didn't have to do anything to make that happen."
+**Do:** Switch back to the app.
 
 ---
 
@@ -244,7 +236,7 @@ Don't hide it. It's often the most credible moment of the demo:
 
 **Say:**
 
-> "Three things to take away. First, every request went through one control point, and the organization set the rules there. Second, the app needed nothing but a URL and a key. Third, everything we saw was measured and tested, not taken on trust.
+> "Three things to take away. First, every request went through one control point, and the organization set the rules there. Second, the app needed nothing but a URL and a key. Third, the organization saw every request without the app doing anything, and every policy was tested, not taken on trust.
 >
 > A good next step is to pick one real use case from one team, write its test set together, and run it through the gateway as a pilot."
 
@@ -257,8 +249,9 @@ Adjust the ask to what this audience can approve.
 | Question | How to answer |
 |---|---|
 | "Can a developer just skip the gateway and call the model directly?" | "In this setup, the app's only credential is a gateway key. Whether direct access is also shut off at the network or account level is an organization control." Confirm the specifics with the platform team beforehand. |
-| "Does the gateway slow things down?" | Point to the response time on each message. "Most of that time is the model writing its answer." If the platform team has measured the gateway's own overhead, quote that number. |
-| "Is the cost exact?" | "The app shows an estimate at list price. The gateway's records are the source of truth." |
+| "Does the gateway slow things down?" | "Most of the wait is the model writing its answer." If the platform team has measured the gateway's own overhead, quote that number. |
+| "Where do the cost numbers come from?" | "From the gateway. It records usage for every request, so cost is tracked in one place for every application." |
+| "Why doesn't the app show usage or cost?" | "Because it doesn't have to. That's the point: teams build the app, and the gateway handles visibility for all of them." |
 | "Are our prompts and answers stored? Where, and for how long?" | Answer from "Know before you go". Don't guess. |
 | "Can different teams have different rules?" | "Keys are issued per agent, so each agent can have its own approved models and guardrails." Confirm this with the platform team. |
 | "What if a guardrail misses something?" | "That's why there are two layers, and why we test. A miss in testing becomes a policy fix before it becomes an incident." |
@@ -302,11 +295,11 @@ Ask the gateway administrator or platform team, and write the answers here:
 
 ## Rehearsal numbers
 
-Fill these in during your rehearsal with the real key, and use them in Acts 4 and 6:
+Fill these in during your rehearsal with the real key, reading cost from the gateway console. Use them in Acts 4 and 6:
 
 | Measure | Value |
 |---|---|
-| Average response time | |
+| Where in the console your requests appear | |
 | Cost of a typical question | |
 | Expected requests per day for the use case you'll mention | |
 | Estimated daily cost at that volume | |
