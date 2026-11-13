@@ -73,7 +73,7 @@ st.set_page_config(page_title="AI Gateway Demo", layout="centered")
 st.markdown(
     """
     <style>
-      #MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"] {visibility: hidden;}
+      #MainMenu, footer, [data-testid="stDecoration"] {visibility: hidden;}
       html, body, [class*="css"] {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
       }
