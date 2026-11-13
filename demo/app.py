@@ -7,6 +7,7 @@ no security logic of its own: whatever the gateway refuses is shown exactly as i
 Run it from the main project folder:  python3 -m streamlit run demo/app.py
 """
 
+import json
 import os
 
 import streamlit as st
@@ -58,8 +59,12 @@ SAVED_URL = os.getenv("GATEWAY_BASE_URL") or ("" if BASE_URL.startswith("PASTE")
 MAX_TOOL_ROUNDS = 5
 
 st.set_page_config(page_title="AI Gateway Demo", layout="centered")
-st.markdown("<style>#MainMenu, footer, [data-testid='stDecoration'] {visibility: hidden;}</style>",
-            unsafe_allow_html=True)
+st.markdown("""<style>
+  #MainMenu, footer, [data-testid='stDecoration'] {visibility: hidden;}
+  [data-testid='stCaptionContainer'] {opacity: 0.75;}
+  [data-testid='stMainBlockContainer'] {padding-top: 2.5rem;}
+  [data-testid='stBottomBlockContainer'] {padding-bottom: 1rem;}
+</style>""", unsafe_allow_html=True)
 
 
 # -----------------------------------------------------------------------------
@@ -69,6 +74,16 @@ st.markdown("<style>#MainMenu, footer, [data-testid='stDecoration'] {visibility:
 def raw(status, body):
     """The gateway's response, shown as is."""
     return {"ok": False, "text": f"HTTP {status}\n\n{body}"}
+
+
+def describe(name, arguments):
+    """A database search in plain words, for the gray line under an answer."""
+    try:
+        query = json.loads(arguments).get("query", "")
+    except Exception:
+        return f"{name}({arguments})"
+    table = {"search_personnel": "personnel", "search_missions": "missions"}.get(name, name)
+    return f'searched {table} for "{query}"'
 
 
 def ask(gateway_url, api_key, model, history):
@@ -97,7 +112,7 @@ def ask(gateway_url, api_key, model, history):
                 {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
                 for tc in message.tool_calls]})
             for tc in message.tool_calls:
-                steps.append(f"{tc.function.name}({tc.function.arguments})")
+                steps.append(describe(tc.function.name, tc.function.arguments))
                 messages.append({"role": "tool", "tool_call_id": tc.id,
                                  "content": run_tool(tc.function.name, tc.function.arguments)})
         return {"ok": False, "text": f"Stopped after {MAX_TOOL_ROUNDS} rounds of database searches.", "steps": steps}
@@ -125,11 +140,11 @@ st.session_state.setdefault("messages", [])
 st.session_state.setdefault("pending", None)
 
 with st.sidebar:
-    st.markdown("### AI Gateway")
+    st.markdown("### Connection")
     gateway_url = st.text_input("Gateway URL", value=SAVED_URL, placeholder="https://.../v1").strip()
     api_key = st.text_input("API key", type="password", placeholder="sk-...").strip() or SAVED_KEY
     st.caption("Using the key from GATEWAY_API_KEY or app.py." if SAVED_KEY else
-               "What you paste here is never saved to a file. It's cleared when you close the tab.")
+               "Press Enter after pasting each one. Not saved to disk. Cleared when this tab is closed or refreshed.")
     st.write("")
     model = st.selectbox("Model", MODELS)
     st.divider()
@@ -158,20 +173,22 @@ for msg in st.session_state.messages:
 pending = st.session_state.pending
 if pending:
     with st.chat_message("assistant", avatar=":material/smart_toy:"):
-        with st.spinner("Thinking"):
+        with st.spinner("Waiting for a response"):
             reply = ask(gateway_url, api_key, pending["model"], pending["history"])
             st.session_state.messages.append({"role": "assistant", "reply": reply})
             st.session_state.pending = None
     st.rerun()
 
-# Keep the newest message in view.
+# Keep the latest question and its answer in view.
 if st.session_state.messages:
     scroll = f"""<script> /* {len(st.session_state.messages)} */ (() => {{
       const page = window.parent.document;
-      setTimeout(() => ["stMain", "stAppScrollToBottomContainer"].forEach(id => {{
-        const el = page.querySelector(`[data-testid="${{id}}"]`);
-        if (el) el.scrollTo({{top: el.scrollHeight}});
-      }}), 150);
+      const toLatest = () => {{  // bring the latest question to the top, so long answers start in view
+        const msgs = page.querySelectorAll('[data-testid="stChatMessage"]');
+        const latest = msgs[msgs.length - 2] || msgs[msgs.length - 1];
+        if (latest) latest.scrollIntoView({{block: "start"}});
+      }};
+      [150, 600].forEach(ms => setTimeout(toLatest, ms));  // twice: some versions auto-scroll after the first
     }})();</script>"""
     try:
         st.html(scroll, unsafe_allow_javascript=True)  # newer Streamlit
@@ -186,7 +203,7 @@ with getattr(st, "bottom", None) or st._bottom:  # newer Streamlit: st.bottom; o
 
 if send_demo or typed:
     if not (gateway_url and api_key):
-        st.warning("Enter the gateway URL and API key in the sidebar first.")
+        st.warning("Enter the gateway URL and API key in the sidebar. Press Enter after each.")
     else:
         if send_demo:
             # Demo prompts are sent on their own, so an earlier prompt can't affect the result.
