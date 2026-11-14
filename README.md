@@ -175,7 +175,7 @@ Open the file in a plain-text code editor, such as [Visual Studio Code](https://
 | Save the URL and key in the app permanently | The settings block at the top of `demo/app.py`. Replace `PASTE-YOUR-API-KEY-HERE` and `PASTE-YOUR-GATEWAY-URL-HERE`, keeping the quote marks. Don't share or upload the file afterwards. |
 | Model names | `MODELS` at the top of `demo/app.py`. Use your gateway's exact names. The **first** must be a model this app is allowed to use. The **second** must be one your gateway **denies** for this app: the "Restricted model" suggested prompt uses it. |
 | Gateway doesn't support tool calling | Set `AGENT_USE_TOOLS = False` in `demo/app.py`. The assistant then works as a plain chatbot, and the "(database)" prompts have no data to work with. |
-| The system prompt (the assistant's role, tone, and length) | `SYSTEM_PROMPT` in `demo/prompts.py`. It has no security rules on purpose: blocking is the gateway's job. |
+| The system prompt (the assistant's role and how answers are formatted) | `SYSTEM_PROMPT` in `demo/prompts.py`. It includes formatting rules and a few short examples. It has no security rules on purpose: blocking is the gateway's job. Keep anything that looks like an attack or personal data out of it, because the gateway checks it on every request. |
 | The suggested prompts in the dropdown | `DEMO_PROMPTS` in `demo/prompts.py`. The comments there explain each field. |
 
 After you save a change, stop and restart the app.

@@ -66,7 +66,7 @@ The gateway governs model traffic, not the tools. The database search runs insid
 | File | Contents |
 |---|---|
 | `demo/app.py` | Settings at the top, then the gateway call and the page |
-| `demo/prompts.py` | `SYSTEM_PROMPT` (the assistant's role and writing style, with no security rules) and `DEMO_PROMPTS` (the dropdown list) |
+| `demo/prompts.py` | `SYSTEM_PROMPT` (the assistant's role, formatting rules, and short examples, with no security rules) and `DEMO_PROMPTS` (the dropdown list) |
 | `demo/database.py` | The synthetic data, the search functions, and the tool definitions |
 | `.streamlit/config.toml` | Colors and display settings |
 | `requirements.txt` | `streamlit` (the web page) and `openai` (the client library for the gateway's request format) |
