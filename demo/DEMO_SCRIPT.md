@@ -29,8 +29,9 @@ Do all of these before the day of the demo.
 - [ ] **Confirm the policies with the gateway administrator:**
   - The key **allows the first model** in `MODELS` (in `demo/app.py`) and **denies the second**. By default those are `haiku-5-5` and `sonnet-5-5`.
   - Which guardrails are on: prompt attacks, harmful content, personal data.
-  - Whether the guardrails check **every message in a request**, including database results sent back to the model, or only what the user typed. The database part of the demo depends on this. See "Why some get through and others don't" below.
-- [ ] **Be confident in the dashboard.** Know where to find the main components you'll show: model access, policies and guardrails, request logs and traces, and usage and cost. Send a prompt from the app and time how long it takes to appear in the logs.
+  - Whether the guardrails check **every message in a request**, including database results sent back to the model, or only what the user typed. The database part of the demo depends on this. See "What the gateway sees when the assistant uses a tool" below.
+- [ ] **Be confident in the dashboard.** Click through every item in the left-hand menu and be able to explain each in a sentence (see Step 1). Send a prompt from the app, time how long it takes to appear on the home page, and practice clicking into it to show what was captured.
+- [ ] **Test how a database question shows up.** Send **Privacy and Security: One person's SSN (database)** and check the dashboard. One question makes two model calls (see "What the gateway sees when the assistant uses a tool" below). Note how many entries appear, and which one is approved or blocked.
 - [ ] **Be confident demoing.** Do a full rehearsal with the real key and a timer, following Phase 3. Send every prompt in the rehearsal table at the bottom of this page and write down what happens. Nothing in the live demo should surprise you.
 - [ ] For every result that surprised you, decide now what you'll say. See "If something goes wrong" below.
 - [ ] Get answers to the "Know before you go" questions at the bottom of this page.
@@ -80,11 +81,16 @@ Start with the dashboard full screen, not the app.
 
 > "Every team wants to use AI, and every one of them could connect to a model a different way, with different rules, different costs, and no shared view of what's happening. The gateway puts one control point between our applications and the models. Let me show you what that control point looks like."
 
-**Walk through the main components:**
-- **Model access:** which models each agent is allowed to use.
-- **Policies and guardrails:** what gets blocked, set once for every application.
-- **Logs and traces:** every request, from every application, in one place.
-- **Usage and cost:** what each agent is spending.
+**Start on the home page:** the live view of every model call, with what was approved and what was blocked, as it happens, and the cost.
+
+**Then walk down the left-hand menu.** Give the overall idea of each item. You don't need to go deep on any of them:
+- **Workspaces:** how the organization is divided into groups or offices. A policy set at the top applies everywhere, and each workspace can add its own rules for its group.
+- **Agents:** how a group or application is given access to specific models. Each agent gets its own key, so every request is tied to who made it.
+- **Cost and cost breakdown:** what's being spent, by workspace, agent, and model.
+- **Traceability:** the full record of every request: what was sent, where it came from, which model, and what the gateway decided.
+- **Policy lab:** where the policies and guardrails are built and tested.
+
+(The menu names in your gateway may differ slightly. Use what's on screen.)
 
 **Transition:**
 
@@ -116,13 +122,17 @@ client = OpenAI(base_url="https://your-gateway.example.com/v1", api_key="your-ag
 
 **Do:** In **Suggested prompts** at the bottom of the app, choose **Baseline: Explain zero trust** and click **Send**.
 
-**Point to the dashboard** as the request lands in the logs.
+**Point to the dashboard** as the request lands on the right, marked approved.
 
-> "That request went from the app, through the gateway, to the model and back, and it's already in the log: which agent, which model, what it cost. It really is that fast."
+> "That request went from the app, through the gateway, to the model and back, and it's already here. It really is that fast."
+
+**Click into the request** and show what was captured: the prompt itself, which agent and application it came from, which model it went to, the gateway's decision, and the cost.
+
+> "Every request from every application is captured like this: what was asked, who asked it, and what the gateway decided."
 
 **Do:** Choose **Baseline: Planned missions (database)** and click **Send**. Point to the gray **Database:** line under the answer, then to the dashboard.
 
-> "This time the assistant used its tool. It searched the mission records, then sent what it found back to the model. That's more than one model call for a single question, and you can see each one in the trace."
+> "This time the assistant used its tool. It searched the mission records, then sent what it found back to the model. That's two model calls for one question, and the gateway sees both."
 
 ### Step 4: Pass and fail (5 minutes)
 
@@ -144,7 +154,9 @@ client = OpenAI(base_url="https://your-gateway.example.com/v1", api_key="your-ag
 
 **Expected:** a gray box from the gateway for each.
 
-> "Each of these was stopped before it reached the model. And look at the dashboard: the refusals are logged too, with the reason. That's what's happening under the hood. Because these policies live in the gateway, they apply to every application connected to it, including ones that haven't been built yet."
+**Click into one of the blocked requests** on the dashboard.
+
+> "Each of these was stopped before it reached the model. Here's what happened under the hood: the gateway captured the prompt, matched it against a policy, and refused it, and it recorded why. Because these policies live in the gateway, they apply to every application connected to it, including ones that haven't been built yet."
 
 **If the model refused instead** (a normal answer that declines, for example "I can't help with that"), say so plainly:
 
@@ -247,14 +259,28 @@ The app doesn't label or interpret anything. Here's what each kind of response m
 | A normal answer with the data | **Allowed.** Nothing stopped it. |
 | A small gray **Database:** line under a response, for example `Database: searched personnel for "Jordan Avery"` | The assistant searched the database. It appears even when the gateway then refused the request: the search happened, and the gateway stopped the results on their way to the model. |
 
-## Why some get through and others don't
+## What the gateway sees when the assistant uses a tool
 
-With tools, one question becomes several requests. The first contains only the user's question, which usually looks harmless. The sensitive data appears in a **later** request, when the app sends the database results back to the model. A gateway that only checks what the user typed never sees it.
+When someone asks "What's Jordan Avery's SSN?", one question becomes two model calls:
 
-So expect a mix:
+```
+1. App --> Gateway --> Model    the question, plus "you can search the database"
+   App <-- Gateway <-- Model    "search personnel for Jordan Avery"
+2. App searches its own database        (the gateway does not see this step)
+3. App --> Gateway --> Model    the question, plus the database results (SSN, address...)
+   App <-- Gateway <-- Model    the answer, with the SSN
+```
+
+The gateway can stop the data in two places, both in step 3:
+- **On the way in:** a policy that inspects every message in the request sees the SSN in the database results and blocks them **before they reach the model**.
+- **On the way out:** a policy that inspects the model's answer blocks the SSN before it reaches the user. By then, though, the data has already been sent to the model.
+
+A gateway that only checks what the user typed sees nothing wrong in step 1 ("What's Jordan Avery's SSN?" contains no SSN) and never looks at step 3. That's why some prompts get through and others don't:
 - **Prompts with the bad content typed in** (Step 4, the pasted SSN, the jailbreaks) are the easiest to catch, because the gateway sees it in the first request.
-- **Prompts where the data comes from the database** (Step 5) are only caught if the gateway inspects every message, including database results.
-- **Operational details like deployment times** (5c) may get through even then, because they aren't personal data. That's a separate policy decision.
+- **Prompts where the data comes from the database** (Step 5) are only caught if the gateway inspects the database results going in, or the model's answer coming out.
+- **Operational details like deployment times** (5c) may get through either way, because they aren't personal data. That's a separate policy decision.
+
+**One thing the gateway doesn't control:** the database search itself runs inside the app (step 2). The gateway governs what the model sees and says, not what the tools do. If a tool could change data or send messages, it would need its own permissions. Worth saying if someone asks whether the agent is now "safe".
 
 ---
 
@@ -271,6 +297,7 @@ So expect a mix:
 | "Can different teams have different rules?" | "Keys are issued per agent, so each agent can have its own approved models and guardrails." Confirm this with the platform team. |
 | "What if a guardrail misses something?" | "That's why we test with prompts like these. A miss in testing becomes a policy fix before it becomes an incident." |
 | "Is this real data?" | "No. Every record is synthetic. The Social Security numbers start with 9, a range that's never issued." |
+| "Can the gateway stop the agent's tools from doing something bad?" | "The gateway controls what the model sees and says. The tools run inside the application, so they need their own permissions, the same as any other software. The gateway makes sure sensitive data doesn't flow to or from the model." |
 | "Who sets the policies?" | "The gateway administrator, in the gateway dashboard. Applications don't get a say." |
 
 ---
@@ -285,6 +312,7 @@ Ask the gateway administrator or platform team, and write the answers here:
 | Which guardrails are on? | |
 | Do guardrails check every message in a request (including tool and database results), or only the user's message? | |
 | Do they check the model's answers too? | |
+| How does a question with a database search appear in the logs: one entry or two? Which one is blocked? | |
 | Where are requests logged, who can see the logs, and how long are they kept? | |
 | Where can I see usage and cost? Can I show it in the demo? | |
 | Is direct access to the models blocked outside the gateway? | |
