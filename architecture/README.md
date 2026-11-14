@@ -1,10 +1,10 @@
 # Architecture
 
-This demo is the simplest possible agent: a chat assistant with one tool, which searches a small local database. It has three parts: the app on your laptop, the AI gateway, and the models behind it. The app never talks to a model directly. Every request goes to the gateway, and the gateway decides what happens.
+Enterprise Assistant is the simplest possible agent: a chat assistant with one tool, which searches a small local database. It has three parts: the app on your laptop, the AI gateway, and the models behind it. The app never talks to a model directly. Every request goes to the gateway, and the gateway decides what happens.
 
 ```mermaid
 flowchart LR
-    U["Presenter<br/>(web browser)"] --> A["Demo app<br/>demo/app.py"]
+    U["Presenter<br/>(web browser)"] --> A["Enterprise Assistant<br/>demo/app.py"]
     A <-- "search" --> D[("Synthetic database<br/>in memory")]
     A -- "request<br/>(question, or database results)" --> G["AI gateway<br/>policies and guardrails"]
     G -- "allowed" --> M["Approved model"]
@@ -16,7 +16,7 @@ flowchart LR
 
 | Part | Runs where | Responsible for |
 |---|---|---|
-| **Demo app** (`demo/app.py`) | Your laptop | Sends each request to the gateway, runs any database search the model asks for, and shows the response. It has **no security logic**: it never blocks, filters, or rewords anything. |
+| **Enterprise Assistant** (`demo/app.py`) | Your laptop | Sends each request to the gateway, runs any database search the model asks for, and shows the response. It has **no security logic**: it never blocks, filters, or rewords anything. |
 | **Synthetic database** (`demo/database.py`) | Your laptop, in memory | 200 fake records: 100 people (with fake SSNs, dates of birth, clearances, addresses) and 100 missions (with deployment times, fictional locations, and mission statements). One mission note hides an instruction aimed at the AI. |
 | **AI gateway** | The organization's cloud | Checks the key, decides which models the app may use, applies guardrails, and records usage. Its policies are set by the gateway administrator, not by this app. |
 | **Models** | Behind the gateway | Generate the answers, and decide when to search the database. |
@@ -51,6 +51,8 @@ The app uses the standard OpenAI-compatible tool-calling format. If your gateway
 
 With tools, one question becomes several requests. The first request contains only the user's question, which usually looks harmless ("What's Jordan Avery's address?"). The sensitive data appears in a **later** request, when the app sends the database results back to the model (step 5 above). A gateway that only inspects the user's typed message never sees that data. To govern an agent, the gateway's guardrails need to inspect every message in every request, including tool results, and ideally the model's answers too.
 
+The gateway governs model traffic, not the tools. The database search runs inside the app (step 4), so the gateway can't stop it; it can only stop what the model sees and says. Tools that can change data or send messages need their own permissions.
+
 ## Data handling
 
 - The API key is used only to call the gateway. A key pasted into the sidebar is held in the running app's memory for that browser session, never written to a file, and cleared when the tab is closed or the app stops.
@@ -64,7 +66,7 @@ With tools, one question becomes several requests. The first request contains on
 | File | Contents |
 |---|---|
 | `demo/app.py` | Settings at the top, then the gateway call and the page |
-| `demo/prompts.py` | `SYSTEM_PROMPT` (writing style only) and `DEMO_PROMPTS` (the dropdown list) |
+| `demo/prompts.py` | `SYSTEM_PROMPT` (the assistant's role and writing style, with no security rules) and `DEMO_PROMPTS` (the dropdown list) |
 | `demo/database.py` | The synthetic data, the search functions, and the tool definitions |
 | `.streamlit/config.toml` | Colors and display settings |
 | `requirements.txt` | `streamlit` (the web page) and `openai` (the client library for the gateway's request format) |

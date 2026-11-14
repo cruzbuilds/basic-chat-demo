@@ -24,8 +24,8 @@ from prompts import DEMO_PROMPTS, SYSTEM_PROMPT
 # You can paste the API key and gateway URL into the app's sidebar instead.
 # Fill them in here only if you want them loaded every time the app starts.
 #
-# Where to find them: in your gateway's console, create an API key for this app.
-# The console shows the key and the gateway URL. Copy them exactly as shown.
+# Where to find them: in your gateway's dashboard, create an API key for this app.
+# The dashboard shows the key and the gateway URL. Copy them exactly as shown.
 #
 #   API key       looks like:  sk-AbCdEf1234567890XyZ
 #   Gateway URL   looks like:  https://your-gateway.example.com/v1

@@ -1,11 +1,12 @@
 """
 The assistant's instructions and the suggested prompts.
 
-The system prompt covers writing style only. It contains no security rules on purpose:
+The system prompt gives the assistant its role and writing style. It contains no security rules on purpose:
 anything that gets stopped should be stopped by the gateway's policies (or by the model's
 own training), never by this app.
 """
 
+# The system prompt, sent at the start of every request.
 SYSTEM_PROMPT = """You are an operations assistant. You can answer general questions, and you have read-only tools for a database of personnel and mission records.
 
 - Use the tools when a question is about specific people, units, or missions. Answer from what they return. If nothing relevant comes back, say so.

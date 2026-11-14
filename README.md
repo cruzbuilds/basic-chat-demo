@@ -1,12 +1,10 @@
 # Enterprise Assistant
 
-A demo of an AI gateway, built as the kind of simple internal assistant any team might create.
-
-The simplest possible AI agent: a chat assistant with one tool, a small database it can search. Every request goes through an AI gateway, and the gateway decides what's allowed.
+A demo of an AI gateway, built as the kind of simple internal assistant any team might create: a chat assistant with one tool, a small database it can search. Every request goes through the gateway, and the gateway decides what's allowed.
 
 - **The app** sends requests and shows what comes back. It has no security logic of its own. When the gateway refuses something, the page shows the gateway's response exactly as it was sent.
 - **The gateway** controls which models the app may use and enforces the guardrails.
-- **The database** holds 200 records of **synthetic** personnel and mission data, including fake Social Security numbers. It's built in memory each time the app starts, and nothing is saved to disk. It's there so the demo can show requests a model would happily answer, but the gateway should stop.
+- **The database** holds 200 **synthetic** personnel and mission records, including fake Social Security numbers. It's built in memory when the app starts. It lets the demo show requests a model would happily answer, but the gateway should stop.
 
 Pick a suggested prompt from the dropdown at the bottom of the page, click **Send**, and watch what the gateway does.
 
@@ -16,7 +14,7 @@ basic-chat-demo/
 ├── requirements.txt       The two packages the app needs
 ├── demo/
 │   ├── app.py             The app
-│   ├── prompts.py         The assistant's instructions and the suggested prompts
+│   ├── prompts.py         The system prompt and the suggested prompts
 │   ├── database.py        The synthetic data and the tool that searches it
 │   └── DEMO_SCRIPT.md     Step-by-step script for presenting the demo
 └── architecture/
@@ -111,12 +109,12 @@ Leave the terminal window open while you use the app. Closing it stops the app.
 
 The app needs a gateway URL and an API key. **If your administrator already gave you both, skip to item 4**, and use the URL exactly as they gave it (it may start with `http://` or `https://`).
 
-To get them yourself, ask your gateway administrator for access to the gateway's console, then:
+To get them yourself, ask your gateway administrator for access to the gateway's dashboard, then:
 
-1. In the console, create an API key for this app. Some gateways call it an agent key.
-2. Copy the key. Many consoles show it **only once**, so paste it somewhere safe right away.
+1. In the dashboard, create an API key for this app. Some gateways call it an agent key.
+2. Copy the key. Many dashboards show it **only once**, so paste it somewhere safe right away.
 3. Copy the gateway's **base URL**. It starts with `https://` (sometimes `http://`) and ends in `/v1`.
-   - In the console, it's the address shown on its own line, or the value after `base_url=` in a **Python** example.
+   - In the dashboard, it's the address shown on its own line, or the value after `base_url=` in a **Python** example.
    - **Don't** copy the address from a **curl** example. It has `/chat/completions` on the end, and requests will fail with `HTTP 404`.
    - No `/` at the end, no quotes, no spaces.
 
@@ -130,15 +128,7 @@ To get them yourself, ask your gateway administrator for access to the gateway's
 
 If the sidebar is hidden, move your mouse to the top-left corner of the page and click the arrow that appears.
 
-The values look like this. Yours will be different:
-
-| Value | Example |
-|---|---|
-| Gateway URL | `https://your-gateway.example.com/v1` |
-| API key | `sk-AbCdEf1234567890XyZ` |
-| Model names | `haiku-5-5`, as listed in your gateway's console or documentation |
-
-If your gateway uses different model names from the two this demo lists (`haiku-5-5` and `sonnet-5-5`), see "Changing things" below.
+An API key looks like `sk-AbCdEf1234567890XyZ`. If your gateway's model names differ from the two this app lists (`haiku-5-5` and `sonnet-5-5`), see "Changing things" below.
 
 ## Using the app
 
@@ -169,7 +159,7 @@ After a restart, paste the URL and key into the sidebar again. To avoid that, se
 
 ## Presenting
 
-Follow [demo/DEMO_SCRIPT.md](demo/DEMO_SCRIPT.md). It covers what to check the day before, what to click, what to say, and how to answer common questions.
+Follow [demo/DEMO_SCRIPT.md](demo/DEMO_SCRIPT.md). It covers the prep, the setup, and the demo itself: what to click, what to say, and how to answer common questions.
 
 To see how the app, the gateway, and the models connect, read [architecture/README.md](architecture/README.md).
 
@@ -185,7 +175,7 @@ Open the file in a plain-text code editor, such as [Visual Studio Code](https://
 | Save the URL and key in the app permanently | The settings block at the top of `demo/app.py`. Replace `PASTE-YOUR-API-KEY-HERE` and `PASTE-YOUR-GATEWAY-URL-HERE`, keeping the quote marks. Don't share or upload the file afterwards. |
 | Model names | `MODELS` at the top of `demo/app.py`. Use your gateway's exact names. The **first** must be a model this app is allowed to use. The **second** must be one your gateway **denies** for this app: the "Restricted model" suggested prompt uses it. |
 | Gateway doesn't support tool calling | Set `AGENT_USE_TOOLS = False` in `demo/app.py`. The assistant then works as a plain chatbot, and the "(database)" prompts have no data to work with. |
-| How the assistant writes (tone and length) | `SYSTEM_PROMPT` in `demo/prompts.py` |
+| The system prompt (the assistant's role, tone, and length) | `SYSTEM_PROMPT` in `demo/prompts.py`. It has no security rules on purpose: blocking is the gateway's job. |
 | The suggested prompts in the dropdown | `DEMO_PROMPTS` in `demo/prompts.py`. The comments there explain each field. |
 
 After you save a change, stop and restart the app.
@@ -197,7 +187,7 @@ After you save a change, stop and restart the app.
 - A key pasted into the sidebar, or set with `export`, is never saved to a file. It's cleared when you close the tab or stop the app.
 - The app only accepts connections from your own computer, so nobody else on the same network can open it.
 - If you save the key in `demo/app.py`, do not upload that file to GitHub or share it.
-- If a key is exposed, create a new one in the gateway console, and ask the administrator to turn off the old one.
+- If a key is exposed, create a new one in the gateway dashboard, and ask the administrator to turn off the old one.
 
 ---
 
@@ -226,6 +216,6 @@ After you save a change, stop and restart the app.
 | `HTTP 404` on every message | The gateway URL is wrong. Paste the base URL ending in `/v1`, not the address from a curl example. |
 | `APIConnectionError` or `APITimeoutError` | The app couldn't reach the gateway. Check that the URL is exactly what your administrator gave you, starts with `https://` or `http://`, and has no quotes or spaces, then check your network or VPN connection. The line under the error usually says more. |
 | A refusal on every message, even "hello" | You may have the restricted model selected. Switch **Model** in the sidebar back to the first one. |
-| An answer comes back, but nothing on screen seems to change | The page scrolls to the newest message on its own. If it didn't, scroll down. |
+| An answer comes back, but nothing on screen seems to change | The page scrolls to the latest message on its own. If it didn't, scroll down. |
 | `HTTP 400` mentioning `tools` | Your gateway doesn't support tool calling. Set `AGENT_USE_TOOLS = False` in `demo/app.py`. |
 | The browser didn't open | Go to `http://localhost:8501` yourself. |

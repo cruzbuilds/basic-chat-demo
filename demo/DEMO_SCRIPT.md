@@ -23,17 +23,16 @@ A great demo is mostly preparation. Phases 0 to 2 happen before anyone joins. Ph
 Do all of these before the day of the demo.
 
 - [ ] **Read this script end to end.**
-- [ ] **Make sure you can stand up the app quickly and confidently.** Follow the README from a fresh download, twice. You should be able to go from nothing to a working app in under five minutes without looking anything up.
-- [ ] **Make sure you have access to the gateway dashboard** with your own account.
-- [ ] **Make sure you have an API key and the gateway URL** for the app, from the dashboard or from your gateway administrator. Keep a backup key ready.
+- [ ] **Stand up the app quickly and confidently.** Follow the README from a fresh download, twice, until you can go from nothing to a working app in under five minutes.
+- [ ] **Get access to the gateway dashboard** with your own account.
+- [ ] **Get an API key and the gateway URL** for the app, from the dashboard or your gateway administrator. Keep a backup key ready.
 - [ ] **Confirm the policies with the gateway administrator:**
   - The key **allows the first model** in `MODELS` (in `demo/app.py`) and **denies the second**. By default those are `haiku-5-5` and `sonnet-5-5`.
   - Which guardrails are on: prompt attacks, harmful content, personal data.
-  - Whether the guardrails check **every message in a request**, including database results sent back to the model, or only what the user typed. The database part of the demo depends on this. See "What the gateway sees when the assistant uses a tool" below.
+  - Whether the guardrails check **every message in a request**, including database results, or only what the user typed. Step 5 depends on this.
 - [ ] **Be confident in the dashboard.** Click through every item in the left-hand menu and be able to explain each in a sentence (see Step 1). Send a prompt from the app, time how long it takes to appear on the home page, and practice clicking into it to show what was captured.
-- [ ] **Test how a database question shows up.** Send **Privacy and Security: One person's SSN (database)** and check the dashboard. One question makes two model calls (see "What the gateway sees when the assistant uses a tool" below). Note how many entries appear, and which one is approved or blocked.
-- [ ] **Be confident demoing.** Do a full rehearsal with the real key and a timer, following Phase 3. Send every prompt in the rehearsal table at the bottom of this page and write down what happens. Nothing in the live demo should surprise you.
-- [ ] For every result that surprised you, decide now what you'll say. See "If something goes wrong" below.
+- [ ] **Test how a database question shows up.** Send **Privacy and Security: One person's SSN (database)**. It makes two model calls (see "What the gateway sees when the assistant uses a tool" below). Note which one is approved or blocked.
+- [ ] **Be confident demoing.** Do a full timed rehearsal of Phase 3 with the real key, and fill in the rehearsal table at the bottom of this page. For anything that surprises you, decide now what you'll say.
 - [ ] Get answers to the "Know before you go" questions at the bottom of this page.
 
 ---
@@ -50,8 +49,7 @@ Do all of these before the day of the demo.
 ## Phase 2: 15 minutes before
 
 - [ ] **Stand everything up.** Start the app and paste the gateway URL and key into the sidebar **before** anyone joins, pressing **Enter** after each. (Leaving a box with Tab doesn't save it.) Don't paste the key on screen.
-- [ ] Leave the sidebar **Model** on the first model.
-- [ ] Send **Baseline: Explain zero trust** to warm up the connection, then click **Start over** in the sidebar.
+- [ ] Leave the sidebar **Model** on the first model. Send **Baseline: Explain zero trust** to warm up the connection, then click **Start over**.
 - [ ] **Arrange the screen:** the app on the **left** half, the gateway dashboard on the **right** half, with the dashboard showing the live request logs. The audience will watch each request land in the logs as you send it.
 - [ ] Close other tabs and turn on Do Not Disturb. Zoom both windows so the room can read them.
 - [ ] Keep the terminal window open but out of view. If the app ever stops, you'll restart it from there.
