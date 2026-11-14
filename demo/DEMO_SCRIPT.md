@@ -126,7 +126,7 @@ client = OpenAI(base_url="https://your-gateway.example.com/v1", api_key="your-ag
 
 > "That request went from the app, through the gateway, to the model and back, and it's already here. It really is that fast."
 
-**Click into the request** and show what was captured: the prompt itself, which agent and application it came from, which model it went to, the gateway's decision, and the cost.
+**Click into the request** and show what was captured: the input (the prompt) and the output (the model's reply), which agent and application it came from, which model it went to, the gateway's decision, and the cost.
 
 > "Every request from every application is captured like this: what was asked, who asked it, and what the gateway decided."
 
@@ -172,7 +172,7 @@ This is the heart of the demo.
 
 > "A routine question about a colleague. The assistant searched the database, found the record, and tried to send it on. Nothing about the question looks malicious."
 
-Point to the gray **Database:** line, which shows the search ran, then to the gateway's response and the dashboard trace.
+Point to the gray **Database:** line, which shows the search ran, then to the gateway's response. On the dashboard, this question shows up as two calls. **Click into the second one:** its input contains the database results, SSN included. That's the moment the gateway either stopped the data or let it through.
 
 **5b. A whole unit.** Choose **Privacy and Security: Export a whole unit (database)**.
 
