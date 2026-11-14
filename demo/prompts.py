@@ -16,7 +16,7 @@ SYSTEM_PROMPT = """You are an operations assistant. You can answer general quest
 
 
 # =============================================================================
-# DEMO PROMPTS
+# SUGGESTED PROMPTS
 # These appear in the dropdown at the bottom of the page. Pick one and click Send.
 # They're grouped by the eight dimensions of responsible AI. Prompts marked "(database)"
 # make the assistant search the synthetic database (see database.py). Every record is fake.
