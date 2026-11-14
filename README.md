@@ -1,4 +1,6 @@
-# AI Gateway Demo
+# Enterprise Assistant
+
+A demo of an AI gateway, built as the kind of simple internal assistant any team might create.
 
 The simplest possible AI agent: a chat assistant with one tool, a small database it can search. Every request goes through an AI gateway, and the gateway decides what's allowed.
 
@@ -6,7 +8,7 @@ The simplest possible AI agent: a chat assistant with one tool, a small database
 - **The gateway** controls which models the app may use and enforces the guardrails.
 - **The database** holds 200 records of **synthetic** personnel and mission data, including fake Social Security numbers. It's built in memory each time the app starts, and nothing is saved to disk. It's there so the demo can show requests a model would happily answer, but the gateway should stop.
 
-Pick a demo prompt from the dropdown at the bottom of the page, click **Send**, and watch what the gateway does.
+Pick a suggested prompt from the dropdown at the bottom of the page, click **Send**, and watch what the gateway does.
 
 ```
 basic-chat-demo/
@@ -14,7 +16,7 @@ basic-chat-demo/
 ├── requirements.txt       The two packages the app needs
 ├── demo/
 │   ├── app.py             The app
-│   ├── prompts.py         The assistant's instructions and the demo prompts
+│   ├── prompts.py         The assistant's instructions and the suggested prompts
 │   ├── database.py        The synthetic data and the tool that searches it
 │   └── DEMO_SCRIPT.md     Step-by-step script for presenting the demo
 └── architecture/
@@ -124,7 +126,7 @@ To get them yourself, ask your gateway administrator for access to the gateway's
    | Wrong | `https://your-gateway.example.com/v1/chat/completions` |
 
 4. In the app's left sidebar, paste the gateway URL into the **Gateway URL** box and press **Enter**. Then paste the API key into the **API key** box and press **Enter**.
-5. Check that it works: in the **Demo prompts** box at the bottom of the page, choose **Baseline: Explain zero trust** and click **Send**. An answer means you're connected. A gray box starting with `HTTP` means something's wrong: see "If something goes wrong" below.
+5. Check that it works: in the **Suggested prompts** box at the bottom of the page, choose **Baseline: Explain zero trust** and click **Send**. An answer means you're connected. A gray box starting with `HTTP` means something's wrong: see "If something goes wrong" below.
 
 If the sidebar is hidden, move your mouse to the top-left corner of the page and click the arrow that appears.
 
@@ -140,7 +142,7 @@ If your gateway uses different model names from the two this demo lists (`haiku-
 
 ## Using the app
 
-- **Demo prompts** (bottom of the page): pick one and click **Send**. Typing in the box filters the list. Each demo prompt is sent on its own, so an earlier prompt can't affect the next result.
+- **Suggested prompts** (bottom of the page): pick one and click **Send**. Typing in the box filters the list. Each suggested prompt is sent on its own, so an earlier prompt can't affect the next result.
 - **Message box** (very bottom): type your own question. Typed messages continue the conversation, so follow-up questions work.
 - **Start over** (sidebar): clears the conversation. It keeps the URL and key.
 - When the gateway refuses something, the app shows exactly what the gateway sent back, in a gray box starting with an HTTP code. The app never blocks or changes anything itself.
@@ -181,10 +183,10 @@ Open the file in a plain-text code editor, such as [Visual Studio Code](https://
 |---|---|
 | Connect automatically, without pasting the URL and key | Stop the app (`Ctrl + C`). In the same terminal window, set the two values, then start the app with the command from "Stop and restart". **Mac:** `export GATEWAY_API_KEY="sk-AbCdEf1234567890XyZ" GATEWAY_BASE_URL="https://your-gateway.example.com/v1"` with your own key and URL in place of the examples. Keep the quote marks in this command. **Windows:** `set GATEWAY_API_KEY=sk-AbCdEf1234567890XyZ`, then `set GATEWAY_BASE_URL=https://your-gateway.example.com/v1`, with no quote marks. The API key box in the app then stays empty and says "Using the key from GATEWAY_API_KEY or app.py". This lasts until you close that terminal window, and nothing is saved to a file. |
 | Save the URL and key in the app permanently | The settings block at the top of `demo/app.py`. Replace `PASTE-YOUR-API-KEY-HERE` and `PASTE-YOUR-GATEWAY-URL-HERE`, keeping the quote marks. Don't share or upload the file afterwards. |
-| Model names | `MODELS` at the top of `demo/app.py`. Use your gateway's exact names. The **first** must be a model this app is allowed to use. The **second** must be one your gateway **denies** for this app: the "Restricted model" demo prompt uses it. |
+| Model names | `MODELS` at the top of `demo/app.py`. Use your gateway's exact names. The **first** must be a model this app is allowed to use. The **second** must be one your gateway **denies** for this app: the "Restricted model" suggested prompt uses it. |
 | Gateway doesn't support tool calling | Set `AGENT_USE_TOOLS = False` in `demo/app.py`. The assistant then works as a plain chatbot, and the "(database)" prompts have no data to work with. |
 | How the assistant writes (tone and length) | `SYSTEM_PROMPT` in `demo/prompts.py` |
-| The demo prompts in the dropdown | `DEMO_PROMPTS` in `demo/prompts.py`. The comments there explain each field. |
+| The suggested prompts in the dropdown | `DEMO_PROMPTS` in `demo/prompts.py`. The comments there explain each field. |
 
 After you save a change, stop and restart the app.
 

@@ -27,7 +27,7 @@ The app doesn't label or interpret anything. Here's what each kind of response m
 | A normal answer with the data | **Allowed.** Nothing stopped it. |
 | A small gray **Database:** line under a response, for example `Database: searched personnel for "Jordan Avery"` | The model searched the database. It appears even when the gateway then refused the request: the search happened, and the gateway stopped the results on their way to the model. |
 
-Each demo prompt is sent on its own, so an earlier prompt can't change the next result. Typed messages continue the conversation.
+Each suggested prompt is sent on its own, so an earlier prompt can't change the next result. Typed messages continue the conversation.
 
 ---
 
@@ -37,7 +37,7 @@ Each demo prompt is sent on its own, so an earlier prompt can't change the next 
 
 - [ ] Confirm with the gateway administrator that the demo key **allows the first model** in `MODELS` (in `demo/app.py`) and **denies the second**. By default those are `haiku-5-5` and `sonnet-5-5`.
 - [ ] Confirm which guardrails are on: prompt attacks, harmful content, personal data. Ask whether they check **every message in a request** (including database results sent back to the model) or only what the user typed. Acts 4 and 5 depend on the answer.
-- [ ] Do a full rehearsal with the real key and a timer. Send every demo prompt once and note what happens in the rehearsal table at the bottom of this page. Nothing in the live demo should surprise you.
+- [ ] Do a full rehearsal with the real key and a timer. Send every suggested prompt once and note what happens in the rehearsal table at the bottom of this page. Nothing in the live demo should surprise you.
 - [ ] For every result that surprised you, decide now what you'll say. See "If something goes wrong" below.
 - [ ] Make sure you can open the gateway console's log, usage, and cost views with your account, and find a request after you send it. Act 6 is built on this.
 - [ ] Get answers to the "Know before you go" questions at the bottom of this page.
@@ -67,7 +67,7 @@ Do not refresh the browser during the demo. A refresh clears the pasted key. Use
 | 6. Visibility | 3 | The same requests, in the gateway console | One control point |
 | 7. Close | 1 | Recap and next step | |
 
-Every demo prompt is in the dropdown at the bottom of the page. Pick one and click **Send**.
+Every suggested prompt is in the dropdown at the bottom of the page. Pick one and click **Send**.
 
 ---
 
@@ -79,7 +79,7 @@ Every demo prompt is in the dropdown at the bottom of the page. Pick one and cli
 
 > "Every team wants to use AI, and every one of them could connect to a model a different way, with different rules and no shared view of what's happening. The gateway puts one control point between our applications and the models.
 >
-> This is the simplest possible AI agent. It can chat, and it has one tool: it can search a database. The data is entirely synthetic: fake people, fake Social Security numbers, fake missions. The app has no security code at all. Everything you're about to see stopped is stopped by the gateway."
+> This is Enterprise Assistant: the kind of simple internal assistant any team here might build. It can chat, and it has one tool: it can search a database. The data is entirely synthetic: fake people, fake Social Security numbers, fake missions. The app has no security code at all. Everything you're about to see stopped is stopped by the gateway."
 
 **Do:** Collapse the sidebar to give answers the full width: hover over its top-right corner and click the arrow. It keeps the URL and key. To reopen it, click the arrow in the top-left corner of the page.
 

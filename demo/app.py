@@ -1,5 +1,5 @@
 """
-AI Gateway Demo
+Enterprise Assistant
 The simplest possible agent: a chat assistant with one tool, which searches a small
 database of synthetic records. Every request goes through the AI gateway. The app adds
 no security logic of its own: whatever the gateway refuses is shown exactly as it was sent.
@@ -38,7 +38,7 @@ BASE_URL = "PASTE-YOUR-GATEWAY-URL-HERE"
 
 # The two models in the Model dropdown, spelled exactly as your gateway names them.
 #   First:  a model this app IS allowed to use. It's selected when the app starts.
-#   Second: a model your gateway DENIES for this app. The "Restricted model" demo prompt uses it.
+#   Second: a model your gateway DENIES for this app. The "Restricted model" suggested prompt uses it.
 MODELS = ["haiku-5-5", "sonnet-5-5"]
 
 # How long to wait for an answer before giving up, in seconds.
@@ -46,7 +46,7 @@ REQUEST_TIMEOUT_SECONDS = 60
 
 # The assistant searches the synthetic database with tool calls. If your gateway doesn't
 # support tool calling, set this to False. The assistant then works as a plain chatbot,
-# and the "(database)" demo prompts won't have any data to work with.
+# and the "(database)" suggested prompts won't have any data to work with.
 AGENT_USE_TOOLS = True
 
 # =============================================================================
@@ -58,7 +58,7 @@ SAVED_KEY = os.getenv("GATEWAY_API_KEY") or ("" if API_KEY.startswith("PASTE") e
 SAVED_URL = os.getenv("GATEWAY_BASE_URL") or ("" if BASE_URL.startswith("PASTE") else BASE_URL)
 MAX_TOOL_ROUNDS = 5
 
-st.set_page_config(page_title="AI Gateway Demo", layout="centered")
+st.set_page_config(page_title="Enterprise Assistant", layout="centered")
 st.markdown("""<style>
   #MainMenu, footer, [data-testid='stDecoration'] {visibility: hidden;}
   [data-testid='stCaptionContainer'] {opacity: 0.75;}
@@ -154,12 +154,11 @@ with st.sidebar:
 
 
 # -----------------------------------------------------------------------------
-# Main area: the conversation, with the demo prompts and message box pinned at the bottom
+# Main area: the conversation, with the suggested prompts and message box pinned at the bottom
 # -----------------------------------------------------------------------------
 
-st.title("AI Gateway Demo")
-st.caption("Every request is sent through the AI gateway. The assistant can search a database of "
-           "personnel and mission records. **All of the data is synthetic.**")
+st.title("Enterprise Assistant")
+st.caption("Ask a question, or look up personnel and mission records. **All records are synthetic.**")
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"], avatar=":material/person:" if msg["role"] == "user" else ":material/smart_toy:"):
@@ -197,7 +196,7 @@ if st.session_state.messages:
 
 with getattr(st, "bottom", None) or st._bottom:  # newer Streamlit: st.bottom; older: st._bottom
     col1, col2 = st.columns([5, 1], vertical_alignment="bottom")
-    picked = col1.selectbox("Demo prompts", DEMO_PROMPTS, format_func=lambda p: f'{p["category"]}: {p["name"]}')
+    picked = col1.selectbox("Suggested prompts", DEMO_PROMPTS, format_func=lambda p: f'{p["category"]}: {p["name"]}')
     send_demo = col2.button("Send", type="primary", width="stretch")
     typed = st.chat_input("Message the assistant")
 
@@ -206,7 +205,7 @@ if send_demo or typed:
         st.warning("Enter the gateway URL and API key in the sidebar. Press Enter after each.")
     else:
         if send_demo:
-            # Demo prompts are sent on their own, so an earlier prompt can't affect the result.
+            # Suggested prompts are sent on their own, so an earlier prompt can't affect the result.
             text, use_model, history = picked["prompt"], MODELS[1] if picked.get("model") == "restricted" else model, []
         else:
             # Typed messages continue the conversation: earlier turns that got an answer are sent along.

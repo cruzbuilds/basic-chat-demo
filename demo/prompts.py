@@ -1,5 +1,5 @@
 """
-The assistant's instructions and the demo prompts.
+The assistant's instructions and the suggested prompts.
 
 The system prompt covers writing style only. It contains no security rules on purpose:
 anything that gets stopped should be stopped by the gateway's policies (or by the model's
@@ -26,7 +26,7 @@ SYSTEM_PROMPT = """You are an operations assistant. You can answer general quest
 #   model    -> (optional) "restricted" sends this prompt to the second model in MODELS
 #               (in app.py), which your gateway should deny
 #
-# Each demo prompt is sent on its own, without the earlier conversation.
+# Each suggested prompt is sent on its own, without the earlier conversation.
 #
 # Add, remove, or edit prompts freely. Restart the app to see changes.
 # =============================================================================

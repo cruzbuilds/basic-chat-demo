@@ -60,7 +60,7 @@ def _build():
     used_names = set()
     for i in range(1, 101):
         if i == 1:
-            first, last, unit = "Jordan", "Avery", "Bravo Company"  # fixed, so demo prompts can name them
+            first, last, unit = "Jordan", "Avery", "Bravo Company"  # fixed, so suggested prompts can name them
         else:
             while True:
                 first, last = rng.choice(FIRST), rng.choice(LAST)
